@@ -3,7 +3,7 @@ const adapter = require('modules/stroeerCoreBidAdapter');
 const bidmanager = require('src/bidmanager');
 const utils = require('src/utils');
 
-function assertBid(bidObject, bidId, ad, width, height, cpm, floor = cpm) {
+function assertBid(bidObject, bidId, ad, width, height, cpm, floor = cpm, maxprice = cpm) {
   assert.propertyVal(bidObject, 'adId', bidId);
   assert.propertyVal(bidObject, 'ad', ad);
   assert.propertyVal(bidObject, 'width', width);
@@ -11,6 +11,7 @@ function assertBid(bidObject, bidId, ad, width, height, cpm, floor = cpm) {
   assert.propertyVal(bidObject, 'cpm', cpm);
   assert.propertyVal(bidObject, 'bidderCode', 'stroeerCore');
   assert.propertyVal(bidObject, 'floor', floor);
+  assert.propertyVal(bidObject, 'maxprice', maxprice);
 }
 
 function assertNoFillBid(bidObject, bidId) {
@@ -86,6 +87,7 @@ const buildBidderResponse = () => ({
   'bids': [{
     'bidId': 'bid1',
     'cpm': 4.0,
+    'maxprice': 3.0,
     'width': 300,
     'height': 600,
     'ad': '<div>tag1</div>'
@@ -561,7 +563,7 @@ describe('stroeerssp adapter', function () {
       const firstBid = bidmanager.addBidResponse.firstCall.args[1];
       const secondBid = bidmanager.addBidResponse.secondCall.args[1];
 
-      assertBid(firstBid, 'bid1', '<div>tag1</div>', 300, 600, 4);
+      assertBid(firstBid, 'bid1', '<div>tag1</div>', 300, 600, 4, 4, 3);
       assertBid(secondBid, 'bid2', '<div>tag2</div>', 728, 90, 7.3);
     });
 
@@ -603,7 +605,7 @@ describe('stroeerssp adapter', function () {
       const firstBid = bidmanager.addBidResponse.firstCall.args[1];
       const secondBid = bidmanager.addBidResponse.secondCall.args[1];
 
-      assertBid(firstBid, 'bid1', '<div>tag1</div>', 300, 600, 4);
+      assertBid(firstBid, 'bid1', '<div>tag1</div>', 300, 600, 4, 4, 3);
       assertBid(secondBid, 'bid2', '<div>tag2</div>', 728, 90, 7.3);
     });
 
@@ -685,7 +687,7 @@ describe('stroeerssp adapter', function () {
       // invalid bids are added last
       assert.strictEqual(bidmanager.addBidResponse.secondCall.args[0], 'div-1');
 
-      assertBid(bidmanager.addBidResponse.secondCall.args[1], 'bid1', '<div>tag1</div>', 300, 600, 4);
+      assertBid(bidmanager.addBidResponse.secondCall.args[1], 'bid1', '<div>tag1</div>', 300, 600, 4, 4, 3);
 
       assertNoFillBid(bidmanager.addBidResponse.firstCall.args[1], 'bid2');
     });
@@ -846,6 +848,132 @@ describe('stroeerssp adapter', function () {
         const ad = bid.generateAd({auctionPrice: '40.22'});
 
         const expectedAd = '<img src=\'tracker.com?p=MTIzNDU2Nzg5MTIzNDU2N8mnFBLGeBHQseHrBA></img>\n<script>var price=MTIzNDU2Nzg5MTIzNDU2N8mnFBLGeBHQseHrBA</script>';
+        assert.equal(ad, expectedAd);
+      });
+
+      it('should replace all occurrences of ${FIRST_BID:ENC}', function() {
+        const bidderResponse = buildBidderResponse({bidId1: '123456789123456789'});
+
+        const responseBid = bidderResponse.bids[0];
+        responseBid.ad = '<img src=\'tracker.com?p=${FIRST_BID:ENC}></img>\n<script>var price=${FIRST_BID:ENC}</script>';
+        responseBid.bidId = '123456789123456789';
+
+        fakeServer.respondWith(JSON.stringify(bidderResponse));
+        bidderRequest.bids[0].bidId = '123456789123456789';
+
+        adapter(win).callBids(bidderRequest);
+
+        fakeServer.respond();
+
+        const bid = bidmanager.addBidResponse.firstCall.args[1];
+        const ad = bid.generateAd({auctionPrice: '40.22', firstBid: '21.00'});
+
+        const expectedAd = '<img src=\'tracker.com?p=MTIzNDU2Nzg5MTIzNDU2Ny498-UZHq-IEVNNYA></img>\n<script>var price=MTIzNDU2Nzg5MTIzNDU2Ny498-UZHq-IEVNNYA</script>';
+        assert.equal(ad, expectedAd);
+      });
+
+      it('should replace all occurrences of ${FIRST_BID:ENC} with empty string if no first bid', function() {
+        const bidderResponse = buildBidderResponse({bidId1: '123456789123456789'});
+
+        const responseBid = bidderResponse.bids[0];
+        responseBid.ad = '<img src=\'tracker.com?p=${FIRST_BID:ENC}></img>\n<script>var price=${FIRST_BID:ENC}</script>';
+        responseBid.bidId = '123456789123456789';
+
+        fakeServer.respondWith(JSON.stringify(bidderResponse));
+        bidderRequest.bids[0].bidId = '123456789123456789';
+
+        adapter(win).callBids(bidderRequest);
+
+        fakeServer.respond();
+
+        const bid = bidmanager.addBidResponse.firstCall.args[1];
+        const ad = bid.generateAd({auctionPrice: '40.22'});
+
+        const expectedAd = '<img src=\'tracker.com?p=></img>\n<script>var price=</script>';
+        assert.equal(ad, expectedAd);
+      });
+
+      it('should replace all occurrences of ${SECOND_BID:ENC}', function() {
+        const bidderResponse = buildBidderResponse({bidId1: '123456789123456789'});
+
+        const responseBid = bidderResponse.bids[0];
+        responseBid.ad = '<img src=\'tracker.com?p=${SECOND_BID:ENC}></img>\n<script>var price=${SECOND_BID:ENC}</script>';
+        responseBid.bidId = '123456789123456789';
+
+        fakeServer.respondWith(JSON.stringify(bidderResponse));
+        bidderRequest.bids[0].bidId = '123456789123456789';
+
+        adapter(win).callBids(bidderRequest);
+
+        fakeServer.respond();
+
+        const bid = bidmanager.addBidResponse.firstCall.args[1];
+        const ad = bid.generateAd({auctionPrice: '40.22', secondBid: '21.00'});
+
+        const expectedAd = '<img src=\'tracker.com?p=MTIzNDU2Nzg5MTIzNDU2Ny498-UZHq-IEVNNYA></img>\n<script>var price=MTIzNDU2Nzg5MTIzNDU2Ny498-UZHq-IEVNNYA</script>';
+        assert.equal(ad, expectedAd);
+      });
+
+      it('should replace all occurrences of ${THIRD_BID:ENC}', function() {
+        const bidderResponse = buildBidderResponse({bidId1: '123456789123456789'});
+
+        const responseBid = bidderResponse.bids[0];
+        responseBid.ad = '<img src=\'tracker.com?p=${THIRD_BID:ENC}></img>\n<script>var price=${THIRD_BID:ENC}</script>';
+        responseBid.bidId = '123456789123456789';
+
+        fakeServer.respondWith(JSON.stringify(bidderResponse));
+        bidderRequest.bids[0].bidId = '123456789123456789';
+
+        adapter(win).callBids(bidderRequest);
+
+        fakeServer.respond();
+
+        const bid = bidmanager.addBidResponse.firstCall.args[1];
+        const ad = bid.generateAd({auctionPrice: '40.22', thirdBid: '21.00'});
+
+        const expectedAd = '<img src=\'tracker.com?p=MTIzNDU2Nzg5MTIzNDU2Ny498-UZHq-IEVNNYA></img>\n<script>var price=MTIzNDU2Nzg5MTIzNDU2Ny498-UZHq-IEVNNYA</script>';
+        assert.equal(ad, expectedAd);
+      });
+
+      it('should replace all occurrences of ${SECOND_BID:ENC} with empty string if no second bid', function() {
+        const bidderResponse = buildBidderResponse({bidId1: '123456789123456789'});
+
+        const responseBid = bidderResponse.bids[0];
+        responseBid.ad = '<img src=\'tracker.com?p=${SECOND_BID:ENC}></img>\n<script>var price=${SECOND_BID:ENC}</script>';
+        responseBid.bidId = '123456789123456789';
+
+        fakeServer.respondWith(JSON.stringify(bidderResponse));
+        bidderRequest.bids[0].bidId = '123456789123456789';
+
+        adapter(win).callBids(bidderRequest);
+
+        fakeServer.respond();
+
+        const bid = bidmanager.addBidResponse.firstCall.args[1];
+        const ad = bid.generateAd({auctionPrice: '40.22'});
+
+        const expectedAd = '<img src=\'tracker.com?p=></img>\n<script>var price=</script>';
+        assert.equal(ad, expectedAd);
+      });
+
+      it('should replace all occurrences of ${THIRD_BID:ENC} with empty string if no second bid', function() {
+        const bidderResponse = buildBidderResponse({bidId1: '123456789123456789'});
+
+        const responseBid = bidderResponse.bids[0];
+        responseBid.ad = '<img src=\'tracker.com?p=${THIRD_BID:ENC}></img>\n<script>var price=${THIRD_BID:ENC}</script>';
+        responseBid.bidId = '123456789123456789';
+
+        fakeServer.respondWith(JSON.stringify(bidderResponse));
+        bidderRequest.bids[0].bidId = '123456789123456789';
+
+        adapter(win).callBids(bidderRequest);
+
+        fakeServer.respond();
+
+        const bid = bidmanager.addBidResponse.firstCall.args[1];
+        const ad = bid.generateAd({auctionPrice: '40.22'});
+
+        const expectedAd = '<img src=\'tracker.com?p=></img>\n<script>var price=</script>';
         assert.equal(ad, expectedAd);
       });
 

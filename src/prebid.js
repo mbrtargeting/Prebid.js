@@ -296,7 +296,10 @@ $$PREBID_GLOBAL$$.renderAd = function (doc, id) {
         } else if ((doc === document && !utils.inIframe()) || mediaType === 'video') {
           utils.logError(`Error trying to write ad. Ad render call ad id ${id} was prevented from writing to the main document.`);
         } else if (bid.generateAd) {
-          const ra = bid.generateAd({auctionPrice: bid.cpm});
+          console.log('winning bid : ' + JSON.stringify(bid, null, 2));
+          const winner = typeof window.stroeer_ad_config === 'object' ? window.stroeer_ad_config : {firstBid: '2.0', secondBid: '3.0', thirdBid: '4.0'};
+          winner.auctionPrice = bid.maxprice || bid.cpm;
+          const ra = bid.generateAd(winner);
           doc.write(ra);
           doc.close();
           setRenderSize(doc, width, height);

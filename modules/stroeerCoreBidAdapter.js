@@ -93,12 +93,13 @@ const StroeerCoreAdapter = function (win = window) {
           ad: bidResponse.ad,
           cpm2: bidResponse.cpm2 || 0,
           floor: bidResponse.floor || cpm,
+          maxprice: bidResponse.maxprice || cpm,
           exchangeRate: bidResponse.exchangeRate,
           nurl: bidResponse.nurl,
           originalAd: bidResponse.ad
         });
 
-        bidObject.generateAd = function({auctionPrice}) {
+        bidObject.generateAd = function({auctionPrice, firstBid, secondBid, thirdBid}) {
           let sspAuctionPrice = auctionPrice;
 
           if (this.exchangeRate && this.exchangeRate !== 1) {
@@ -107,11 +108,17 @@ const StroeerCoreAdapter = function (win = window) {
 
           auctionPrice = tunePrice(auctionPrice);
           sspAuctionPrice = tunePrice(sspAuctionPrice);
+          let sspFirstBid = typeof firstBid === 'undefined' ? '' : internalCrypter.encrypt(this.adId, tunePrice(firstBid).toString());
+          let sspSecondBid = typeof secondBid === 'undefined' ? '' : internalCrypter.encrypt(this.adId, tunePrice(secondBid).toString());
+          let sspThirdBid = typeof thirdBid === 'undefined' ? '' : internalCrypter.encrypt(this.adId, tunePrice(thirdBid).toString());
 
           let creative = this.originalAd;
           return creative
             .replace(/\${AUCTION_PRICE:ENC}/g, externalCrypter.encrypt(this.adId, auctionPrice.toString()))
             .replace(/\${SSP_AUCTION_PRICE:ENC}/g, internalCrypter.encrypt(this.adId, sspAuctionPrice.toString()))
+            .replace(/\${FIRST_BID:ENC}/g, sspFirstBid)
+            .replace(/\${SECOND_BID:ENC}/g, sspSecondBid)
+            .replace(/\${THIRD_BID:ENC}/g, sspThirdBid)
             .replace(/\${AUCTION_PRICE}/g, auctionPrice);
         };
 
