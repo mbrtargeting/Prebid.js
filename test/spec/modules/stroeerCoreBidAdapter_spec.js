@@ -887,10 +887,12 @@ describe('stroeerssp adapter', function () {
         fakeServer.respond();
 
         const bid = bidmanager.addBidResponse.firstCall.args[1];
-        const ad = bid.generateAd({auctionPrice: '40.22'});
+        const ad1 = bid.generateAd({auctionPrice: '40.22'});
+        const ad2 = bid.generateAd({auctionPrice: '40.22', firstBid: null});
 
         const expectedAd = '<img src=\'tracker.com?p=></img>\n<script>var price=</script>';
-        assert.equal(ad, expectedAd);
+        assert.equal(ad1, expectedAd);
+        assert.equal(ad2, expectedAd);
       });
 
       it('should replace all occurrences of ${SECOND_BID:ENC}', function() {
@@ -950,10 +952,12 @@ describe('stroeerssp adapter', function () {
         fakeServer.respond();
 
         const bid = bidmanager.addBidResponse.firstCall.args[1];
-        const ad = bid.generateAd({auctionPrice: '40.22'});
+        const ad1 = bid.generateAd({auctionPrice: '40.22'});
+        const ad2 = bid.generateAd({auctionPrice: '40.22', secondBid: null});
 
         const expectedAd = '<img src=\'tracker.com?p=></img>\n<script>var price=</script>';
-        assert.equal(ad, expectedAd);
+        assert.equal(ad1, expectedAd);
+        assert.equal(ad2, expectedAd);
       });
 
       it('should replace all occurrences of ${THIRD_BID:ENC} with empty string if no second bid', function() {
@@ -971,10 +975,12 @@ describe('stroeerssp adapter', function () {
         fakeServer.respond();
 
         const bid = bidmanager.addBidResponse.firstCall.args[1];
-        const ad = bid.generateAd({auctionPrice: '40.22'});
+        const ad1 = bid.generateAd({auctionPrice: '40.22'});
+        const ad2 = bid.generateAd({auctionPrice: '40.22', thirdBid: null});
 
         const expectedAd = '<img src=\'tracker.com?p=></img>\n<script>var price=</script>';
-        assert.equal(ad, expectedAd);
+        assert.equal(ad1, expectedAd);
+        assert.equal(ad2, expectedAd);
       });
 
       it('should replace all occurrences of ${AUCTION_PRICE}', function() {

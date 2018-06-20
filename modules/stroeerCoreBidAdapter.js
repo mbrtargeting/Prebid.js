@@ -108,9 +108,9 @@ const StroeerCoreAdapter = function (win = window) {
 
           auctionPrice = tunePrice(auctionPrice);
           sspAuctionPrice = tunePrice(sspAuctionPrice);
-          let sspFirstBid = typeof firstBid === 'undefined' ? '' : internalCrypter.encrypt(this.adId, tunePrice(firstBid).toString());
-          let sspSecondBid = typeof secondBid === 'undefined' ? '' : internalCrypter.encrypt(this.adId, tunePrice(secondBid).toString());
-          let sspThirdBid = typeof thirdBid === 'undefined' ? '' : internalCrypter.encrypt(this.adId, tunePrice(thirdBid).toString());
+          const sspFirstBid = firstBid == null ? '' : internalCrypter.encrypt(this.adId, tunePrice(firstBid).toString());
+          const sspSecondBid = secondBid == null ? '' : internalCrypter.encrypt(this.adId, tunePrice(secondBid).toString());
+          const sspThirdBid = thirdBid == null ? '' : internalCrypter.encrypt(this.adId, tunePrice(thirdBid).toString());
 
           let creative = this.originalAd;
           return creative
