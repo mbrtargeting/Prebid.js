@@ -826,6 +826,27 @@ export function cookiesAreEnabled() {
   return window.document.cookie.indexOf('prebid.cookieTest') != -1;
 }
 
+export function getCookie(name) {
+  let m = window.document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]*)\\s*(;|$)');
+  return m ? decodeURIComponent(m[2]) : null;
+}
+
+export function setCookie(key, value, expires, sameSite, doc) {
+  (doc || document).cookie = `${key}=${encodeURIComponent(value)}${(expires !== '') ? `; expires=${expires}` : ''}; path=/${sameSite ? `; SameSite=${sameSite}` : ''}`;
+}
+
+/**
+ * @returns {boolean}
+ */
+export function localStorageIsEnabled () {
+  try {
+    localStorage.setItem('prebid.cookieTest', '1');
+    return localStorage.getItem('prebid.cookieTest') === '1';
+  } catch (error) {
+    return false;
+  }
+}
+
 /**
  * Given a function, return a function which only executes the original after
  * it's been called numRequiredCalls times.
