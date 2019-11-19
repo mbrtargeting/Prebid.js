@@ -21,13 +21,11 @@ export function setConfig(config) {
   if (!config) {
     active = false
     return
-  }
-  else if (!cookiesAreEnabled() && !localStorageIsEnabled()) {
+  } else if (!cookiesAreEnabled() && !localStorageIsEnabled()) {
     active = false
     logWarn('The current browser instance does not support the cookies module.')
     return
-  }
-  else {
+  } else {
     active = true
   }
 
@@ -121,22 +119,19 @@ export function bidWonListener(bid, doc) {
   if (cookieConfig.from.indexOf('creative') !== -1) {
     if (doc.readyState === 'complete') {
       syncData(getDataObj(doc), undefined, {addPrefix: false})
-    }
-    else {
+    } else {
       if (doc.addEventListener) {
         doc.addEventListener('DOMContentLoaded', () => {
           syncData(getDataObj(doc), undefined, {addPrefix: false})
         }, false)
-      }
-      else if (attachEvent) {
+      } else if (attachEvent) {
         doc.attachEvent('onreadystatechange', () => {
           if (document.readyState !== 'complete') {
             return
           }
           syncData(getDataObj(doc), undefined, {addPrefix: false})
         })
-      }
-      else {
+      } else {
         setTimeout(() => {
           syncData(getDataObj(doc), undefined, {addPrefix: false})
         }, 200)
@@ -158,8 +153,7 @@ function localStorageIsEnabled(doc) {
     docWindow.localStorage.setItem('prebid.test', 'prebid.test')
     docWindow.localStorage.removeItem('prebid.test')
     return true
-  }
-  catch (e) {
+  } catch (e) {
     return false
   }
 }
@@ -191,8 +185,7 @@ function syncData(data, doc, options = {}) {
           }
           setCookie(name, data[key], cookieConfig.expires, cookieConfig.sameSite, doc)
           return true
-        }
-        else if (storage === 'localStorage') {
+        } else if (storage === 'localStorage') {
           if (!localStorageIsEnabled(doc)) {
             return false
           }
@@ -225,15 +218,13 @@ function getDataObj(doc) {
           let value = match[2]
           try {
             value = decodeURIComponent(value)
-          }
-          catch (e) { /* set original */
+          } catch (e) { /* set original */
           }
           cookies[name] = value
         }
         return cookies
       }, {})
-  }
-  catch (e) { /* can not access cookies */
+  } catch (e) { /* can not access cookies */
   }
 
   let storage = {}
@@ -243,8 +234,7 @@ function getDataObj(doc) {
       storage[key] = docWindow.localStorage.getItem(key)
       return storage
     }, {})
-  }
-  catch (e) { /* can not access localStorage */
+  } catch (e) { /* can not access localStorage */
   }
 
   return Object.assign(cookies, storage)

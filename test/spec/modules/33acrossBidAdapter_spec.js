@@ -517,7 +517,6 @@ describe('33acrossBidAdapter:', function () {
               bid: [{
                 id: '1',
                 adm: '<html><h3>I am an ad</h3></html>',
-                crid: 1,
                 h: 250,
                 w: 300,
                 price: 0.0940,
@@ -526,7 +525,6 @@ describe('33acrossBidAdapter:', function () {
               {
                 id: '2',
                 adm: '<html><h3>I am an ad</h3></html>',
-                crid: 2,
                 h: 250,
                 w: 300,
                 price: 0.0938,

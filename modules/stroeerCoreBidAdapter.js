@@ -2,6 +2,7 @@ import {registerBidder} from '../src/adapters/bidderFactory';
 import includes from 'core-js/library/fn/array/includes';
 import find from 'core-js/library/fn/array/find';
 import {ajax} from '../src/ajax';
+import {getCookie, setCookie} from '../src/utils';
 
 const utils = require('../src/utils');
 const url = require('../src/url');
@@ -10,6 +11,8 @@ const BIDDER_CODE = 'stroeerCore';
 const DEFAULT_HOST = 'hb.adscale.de';
 const DEFAULT_PATH = '/dsh';
 const DEFAULT_PORT = '';
+const USER_ID_COOKIE_NAME = 'stroeer-uid';
+const X_STROEER_UID_HEADER_NAME = 'x-stroeer-uid';
 
 const _externalCrypter = new Crypter('c2xzRWh5NXhpZmxndTRxYWZjY2NqZGNhTW1uZGZya3Y=', 'eWRpdkFoa2tub3p5b2dscGttamIySGhkZ21jcmg0Znk=');
 const _internalCrypter = new Crypter('1AE180CBC19A8CFEB7E1FCC000A10F5D892A887A2D9=', '0379698055BD41FD05AC543A3AAAD6589BC6E1B3626=');
@@ -87,6 +90,12 @@ function buildUrl({host: hostname = DEFAULT_HOST, port = DEFAULT_PORT, securePor
     port = securePort;
   }
 
+  const buyeruid = getCookie(USER_ID_COOKIE_NAME);
+  if (buyeruid) {
+    const search = `stroeerUid=${buyeruid}`;
+    return url.format({protocol: 'https', search, hostname, port, pathname});
+  }
+
   return url.format({protocol: 'https', hostname, port, pathname});
 }
 
@@ -114,6 +123,12 @@ function initUserConnect() {
 
   utils.insertElement(scriptElement);
 }
+
+const saveUserId = userIdFromServer => {
+  if (!userIdFromServer) return;
+
+  setCookie(USER_ID_COOKIE_NAME, userIdFromServer)
+};
 
 export const spec = {
   code: BIDDER_CODE,
@@ -186,6 +201,8 @@ export const spec = {
 
   interpretResponse: function (serverResponse, serverRequest) {
     const bids = [];
+
+    saveUserId(serverResponse.headers.get(X_STROEER_UID_HEADER_NAME));
 
     if (serverResponse.body && typeof serverResponse.body === 'object') {
       if (serverResponse.body.tep) {
