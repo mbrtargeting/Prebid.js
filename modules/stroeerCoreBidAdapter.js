@@ -11,7 +11,12 @@ const BIDDER_CODE = 'stroeerCore';
 const DEFAULT_HOST = 'hb.adscale.de';
 const DEFAULT_PATH = '/dsh';
 const DEFAULT_PORT = '';
+
 const USER_ID_COOKIE_NAME = 'stroeer-uid';
+const USER_ID_COOKIE_EXPIRY_DAYS = 30;
+const USER_ID_COOKIE_EXPIRY_DELTA_MILLIS = USER_ID_COOKIE_EXPIRY_DAYS * 60 * 60 * 1000 * 24;
+
+const getUserIdCookieExpiryDate = () => new Date(new Date().getTime() + USER_ID_COOKIE_EXPIRY_DELTA_MILLIS).toUTCString();
 
 const _externalCrypter = new Crypter('c2xzRWh5NXhpZmxndTRxYWZjY2NqZGNhTW1uZGZya3Y=', 'eWRpdkFoa2tub3p5b2dscGttamIySGhkZ21jcmg0Znk=');
 const _internalCrypter = new Crypter('1AE180CBC19A8CFEB7E1FCC000A10F5D892A887A2D9=', '0379698055BD41FD05AC543A3AAAD6589BC6E1B3626=');
@@ -120,7 +125,7 @@ function initUserConnect() {
 const saveUserId = responseBody => {
   if (!responseBody.ext || !responseBody.ext.buyeruid) return;
 
-  setCookie(USER_ID_COOKIE_NAME, responseBody.ext.buyeruid)
+  setCookie(USER_ID_COOKIE_NAME, responseBody.ext.buyeruid, getUserIdCookieExpiryDate())
 };
 
 export const spec = {
