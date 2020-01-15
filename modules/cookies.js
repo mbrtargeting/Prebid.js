@@ -1,5 +1,5 @@
-import {config} from '../src/config.js';
-import {cookiesAreEnabled, setCookie, logInfo, logWarn} from '../src/utils.js'
+import { config } from '../src/config.js';
+import { cookiesAreEnabled, setCookie, logInfo, logWarn } from '../src/utils.js'
 
 let cookieConfig = {}
 let enabled = false
@@ -16,27 +16,31 @@ let active = false
  * @param {array<string>} config.storages - Storage to use to store data. Can be: `cookies` or `localStorage`.
  * @param {string} config.expires - Sane-cookie-date. Only in cookies-store.
  * @param {string} config.sameSite - Set to `Lax` to send cookies to third parties. Only in cookies-store.
+ * @param {object} config.bidResponseSchema - Parse custom bid objects for specific SSPs.
  */
-export function setConfig(config) {
+export function setConfig (config) {
   if (!config) {
     active = false
     return
   } else if (!cookiesAreEnabled() && !localStorageIsEnabled()) {
     active = false
-    logWarn('The current browser instance does not support the cookies module.')
+    logWarn('[cookies] The current browser instance does not support the cookies module.')
     return
   } else {
     active = true
   }
 
   // default values
-  if (typeof config !== 'object') {
-    config = {}
-  }
+  if (typeof config !== 'object') config = {}
   config.namespace = config.namespace || 'prebid.'
   config.prefix = config.prefix || (config.namespace === '*' ? '' : 'prebid.')
-  config.storages = Array.isArray(config.storages) ? config.storages : (config.storages ? [config.storages] : ['cookies', 'localStorage'])
-  config.from = Array.isArray(config.from) ? config.from : (config.from ? [config.from] : ['creative', 'winningBidResponse', 'bidResponse'])
+  config.storages = Array.isArray(config.storages)
+    ? config.storages
+    : (config.storages ? [ config.storages ] : [ 'cookies', 'localStorage' ])
+  config.from = Array.isArray(config.from)
+    ? config.from
+    : (config.from ? [ config.from ] : [ 'creative', 'winningBidResponse', 'bidResponse' ])
+  config.bidResponseSchema = config.bidResponseSchema || { '*': { cookies: '*' } }
 
   // make the cookie config native to this module
   cookieConfig = config
@@ -46,7 +50,7 @@ export function setConfig(config) {
     $$PREBID_GLOBAL$$.onEvent('bidRequested', bidRequestedListener)
     $$PREBID_GLOBAL$$.onEvent('bidResponse', bidResponseListener)
     $$PREBID_GLOBAL$$.onEvent('bidWon', bidWonListener)
-    logInfo('The cookies module is enabled.', cookieConfig)
+    logInfo('[cookies] The cookies module is enabled.', cookieConfig)
   }
 }
 
@@ -57,13 +61,11 @@ config.getConfig('cookies', config => setConfig(config.cookies))
  *
  * @param {object} bidRequest - Bid request configuration.
  */
-export function bidRequestedListener(bidRequest) {
+export function bidRequestedListener (bidRequest) {
   if (active) {
     const cookies = getDataObj(document)
     const data = Object.keys(cookies).reduce((data, key) => {
-      if (!(key.startsWith(cookieConfig.namespace))) {
-        return data
-      }
+      if (!(key.startsWith(cookieConfig.namespace))) return data
       const value = cookies[key]
       if (cookieConfig.prefix && key.startsWith(cookieConfig.prefix)) {
         key = key.substr(cookieConfig.prefix.length)
@@ -79,21 +81,33 @@ export function bidRequestedListener(bidRequest) {
 }
 
 /**
- * Calls syncData for the `document` of a winning bid.
- *
- * Sets `cookies` from the bid response to the main frame.
- * It is up to the adapter to set the `cookies`-property of a bid or not.
- *
- * Example for interpretResponse:
- * bid.cookies = JSON.parse(serverResponse.headers.get('X-Set-Cookie-JSON'))
+ * Sets the parsed bid response from the bid response to the main frame.
+ * It is up to the adapter to set the properties in a bid or not.
  *
  * @param {object} bid - bid response.
+ * @param {object} options - additional options.
  */
-export function bidResponseListener(bid) {
-  if (!active || !bid.cookies || cookieConfig.from.indexOf('bidResponse') === -1) {
-    return
+export function bidResponseListener (bid, options = {}) {
+  if (!active || cookieConfig.from.indexOf('bidResponse') === -1) return
+
+  const schemas = cookieConfig.bidResponseSchema
+  const schema = schemas[bid.bidder] || schemas['*']
+
+  const data = Object.keys(schema).reduce((data, key) => {
+    if (!(key in bid)) return data
+    const values = Array.isArray(schema[key]) ? schema[key] : [ schema[key] ]
+    const isAllValueRequest = !!(values.find((v) => v === '*'))
+    if (isAllValueRequest) return Object.assign(data, bid[key])
+    values.forEach((v) => { data[v] = bid[key][v] || data[v] })
+    return data
+  }, {})
+
+  if (Object.keys(data).length > 0) {
+    if (!(options.silent)) {
+      logInfo(`[cookies] syncing ${bid.bidderCode} bid response data.`)
+    }
+    syncData(data, undefined, { addPrefix: true })
   }
-  syncData(bid.cookies, undefined, {addPrefix: true})
 }
 
 /**
@@ -101,39 +115,55 @@ export function bidResponseListener(bid) {
  *
  * @param {object} bid - Bid object.
  */
-export function bidWonListener(bid, doc) {
-  if (!active) {
-    return
-  }
+export function bidWonListener (bid, doc) {
+  if (!active) return
 
   // set cookies from the bid response to the main frame
-  if (bid.cookies && (cookieConfig.from.indexOf('bidResponse') !== -1 || cookieConfig.from.indexOf('winningBidResponse') !== -1)) {
-    syncData(bid.cookies, undefined, {addPrefix: true})
+  if (bid.cookies && (
+    cookieConfig.from.indexOf('bidResponse') !== -1 ||
+    cookieConfig.from.indexOf('winningBidResponse') !== -1
+  )) {
+    bidResponseListener(bid, { silent: true })
   }
 
   // Set cookies from the main frame in the creative frame.
-  syncData(getDataObj(document), doc, {addPrefix: false, removePrefix: true})
+  let data = getDataObj(document)
+  syncData(data, doc, { addPrefix: false, removePrefix: true, silent: true })
+  const knownCookies = Object.keys(data)
+    .filter((d) => d.startsWith(cookieConfig.prefix))
+    .map((d) => d.substr(cookieConfig.prefix.length))
 
-  // Set cookies from the completed creative frame to the main frame.
-  // Do not add prefixes - the purpose of cookies is not unique to this module.
+  // Retrieve cookies from the completed creative frame to the main frame.
+  const getNestedDocDataObj = (doc) => {
+    data = getDataObj(doc)
+    data = Object.keys(data).reduce((d, key) => {
+      if (knownCookies.indexOf(key) !== -1 && !(key.startsWith(cookieConfig.prefix))) {
+        d[cookieConfig.prefix + key] = data[key]
+      } else {
+        d[key] = data[key]
+      }
+      return d
+    }, {})
+    return data
+  }
+
+  // Do not add prefixes - cookies don't belong to this module, unless the cookie is known
   if (cookieConfig.from.indexOf('creative') !== -1) {
     if (doc.readyState === 'complete') {
-      syncData(getDataObj(doc), undefined, {addPrefix: false})
+      syncData(getNestedDocDataObj(doc), undefined, { addPrefix: false })
     } else {
       if (doc.addEventListener) {
         doc.addEventListener('DOMContentLoaded', () => {
-          syncData(getDataObj(doc), undefined, {addPrefix: false})
+          syncData(getNestedDocDataObj(doc), undefined, { addPrefix: false })
         }, false)
       } else if (attachEvent) {
         doc.attachEvent('onreadystatechange', () => {
-          if (document.readyState !== 'complete') {
-            return
-          }
-          syncData(getDataObj(doc), undefined, {addPrefix: false})
+          if (document.readyState !== 'complete') return
+          syncData(getNestedDocDataObj(doc), undefined, { addPrefix: false })
         })
       } else {
         setTimeout(() => {
-          syncData(getDataObj(doc), undefined, {addPrefix: false})
+          syncData(getNestedDocDataObj(doc), undefined, { addPrefix: false })
         }, 200)
       }
     }
@@ -147,7 +177,7 @@ export function bidWonListener(bid, doc) {
  *
  * @returns {boolean} - `true` if localStorage can be used
  */
-function localStorageIsEnabled(doc) {
+function localStorageIsEnabled (doc) {
   try {
     const docWindow = (doc) ? (doc.parentWindow || doc.defaultView) : window
     docWindow.localStorage.setItem('prebid.test', 'prebid.test')
@@ -165,8 +195,9 @@ function localStorageIsEnabled(doc) {
  * @param {Document} document - Document. Defaults to the current document.
  * @param {object} options - Additional configuration.
  * @param {boolean} options.addPrefix - Adds the prefix when setting data.
+ * @param {boolean} options.silent - Mutes the console.
  */
-function syncData(data, doc, options = {}) {
+function syncData (data, doc, options = {}) {
   Object.keys(data).forEach((key) => {
     let name = key
     if (options.addPrefix && cookieConfig.prefix && key.indexOf(cookieConfig.prefix) !== 0) {
@@ -180,14 +211,16 @@ function syncData(data, doc, options = {}) {
 
       cookieConfig.storages.find((storage) => {
         if (storage === 'cookies') {
-          if (!cookiesAreEnabled()) {
-            return false
+          if (!cookiesAreEnabled()) return false
+          if (!(options.silent)) {
+            logInfo(`[cookies] Setting cookie ${name} to ${data[key]} until ${cookieConfig.expires || 'session end'}`)
           }
           setCookie(name, data[key], cookieConfig.expires, cookieConfig.sameSite, doc)
           return true
         } else if (storage === 'localStorage') {
-          if (!localStorageIsEnabled(doc)) {
-            return false
+          if (!localStorageIsEnabled(doc)) return false
+          if (!(options.silent)) {
+            logInfo(`[cookies] Setting localstorage ${name} to ${data[key]}`)
           }
           const docWindow = (doc) ? (doc.parentWindow || doc.defaultView) : window
           docWindow.localStorage.setItem(name, data[key])
@@ -206,7 +239,7 @@ function syncData(data, doc, options = {}) {
  *
  * @returns {object} - A key-value-object.
  */
-function getDataObj(doc) {
+function getDataObj (doc) {
   let cookies = {}
   try {
     cookies = doc.cookie
@@ -216,16 +249,12 @@ function getDataObj(doc) {
         if (match) {
           const name = match[1]
           let value = match[2]
-          try {
-            value = decodeURIComponent(value)
-          } catch (e) { /* set original */
-          }
+          try { value = decodeURIComponent(value) } catch (e) { /* set original */ }
           cookies[name] = value
         }
         return cookies
       }, {})
-  } catch (e) { /* can not access cookies */
-  }
+  } catch (e) { /* can not access cookies */ }
 
   let storage = {}
   try {
@@ -234,8 +263,7 @@ function getDataObj(doc) {
       storage[key] = docWindow.localStorage.getItem(key)
       return storage
     }, {})
-  } catch (e) { /* can not access localStorage */
-  }
+  } catch (e) { /* can not access localStorage */ }
 
   return Object.assign(cookies, storage)
 }

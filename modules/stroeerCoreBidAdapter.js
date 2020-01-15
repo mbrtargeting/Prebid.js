@@ -2,7 +2,6 @@ import {registerBidder} from '../src/adapters/bidderFactory';
 import includes from 'core-js/library/fn/array/includes';
 import find from 'core-js/library/fn/array/find';
 import {ajax} from '../src/ajax';
-import {getCookie, setCookie} from '../src/utils';
 
 const utils = require('../src/utils');
 const url = require('../src/url');
@@ -11,12 +10,6 @@ const BIDDER_CODE = 'stroeerCore';
 const DEFAULT_HOST = 'hb.adscale.de';
 const DEFAULT_PATH = '/dsh';
 const DEFAULT_PORT = '';
-
-const USER_ID_COOKIE_NAME = 'stroeer-uid';
-const USER_ID_COOKIE_EXPIRY_DAYS = 30;
-const USER_ID_COOKIE_EXPIRY_DELTA_MILLIS = USER_ID_COOKIE_EXPIRY_DAYS * 60 * 60 * 1000 * 24;
-
-const getUserIdCookieExpiryDate = () => new Date(new Date().getTime() + USER_ID_COOKIE_EXPIRY_DELTA_MILLIS).toUTCString();
 
 const _externalCrypter = new Crypter('c2xzRWh5NXhpZmxndTRxYWZjY2NqZGNhTW1uZGZya3Y=', 'eWRpdkFoa2tub3p5b2dscGttamIySGhkZ21jcmg0Znk=');
 const _internalCrypter = new Crypter('1AE180CBC19A8CFEB7E1FCC000A10F5D892A887A2D9=', '0379698055BD41FD05AC543A3AAAD6589BC6E1B3626=');
@@ -90,11 +83,13 @@ function elementInView(elementId) {
 }
 
 function buildUrl({host: hostname = DEFAULT_HOST, port = DEFAULT_PORT, securePort, path: pathname = DEFAULT_PATH}) {
-  if (securePort) {
+  const secure = isSecureWindow();
+
+  if (securePort && secure) {
     port = securePort;
   }
 
-  return url.format({protocol: 'https', hostname, port, pathname});
+  return url.format({protocol: secure ? 'https' : 'http', hostname, port, pathname});
 }
 
 function setupGlobalNamespace(anyBid) {
@@ -109,7 +104,7 @@ function initUserConnect() {
   const stroeerCore = getStroeerCore();
 
   const sid = stroeerCore.anySid;
-  const userConnectJsUrl = (stroeerCore.userConnectJsUrl || 'https://js.adscale.de/userconnect.js');
+  const userConnectJsUrl = (stroeerCore.userConnectJsUrl || '//js.adscale.de/userconnect.js');
 
   const scriptElement = getMostAccessibleTopWindow().document.createElement('script');
 
@@ -121,12 +116,6 @@ function initUserConnect() {
 
   utils.insertElement(scriptElement);
 }
-
-const saveUserId = responseBody => {
-  if (!responseBody.ext || !responseBody.ext.buyeruid) return;
-
-  setCookie(USER_ID_COOKIE_NAME, responseBody.ext.buyeruid, getUserIdCookieExpiryDate())
-};
 
 export const spec = {
   code: BIDDER_CODE,
@@ -190,11 +179,9 @@ export const spec = {
       });
     });
 
-    const buyeruid = getCookie(USER_ID_COOKIE_NAME);
-    if (buyeruid) {
-      payload.user = {
-        buyeruid
-      }  
+    if (bidderRequest.cookies && 'buyeruid' in bidderRequest.cookies) {
+      const buyeruid = bidderRequest.cookies.buyeruid
+      payload.user = { buyeruid }
     }
 
     return {
@@ -212,7 +199,10 @@ export const spec = {
         ajax(serverResponse.body.tep, () => {});
       }
 
-      saveUserId(serverResponse.body);
+      const user = {}
+      if (serverResponse.body.ext && 'buyeruid' in serverResponse.body.ext) {
+        user.buyeruid = serverResponse.body.ext.buyeruid
+      }
 
       serverResponse.body.bids.forEach(bidResponse => {
         const cpm = bidResponse.cpm || 0;
@@ -237,6 +227,7 @@ export const spec = {
           nurl: bidResponse.nurl,
           originalAd: bidResponse.ad,
           tracking: bidResponse.tracking,
+          user: user,
           generateAd: function ({auctionPrice, firstBid, secondBid, thirdBid}) {
             let sspAuctionPrice = auctionPrice;
 
