@@ -85,8 +85,9 @@ export function bidRequestedListener (bidRequest) {
  * It is up to the adapter to set the properties in a bid or not.
  *
  * @param {object} bid - bid response.
+ * @param {object} options - additional options.
  */
-export function bidResponseListener (bid) {
+export function bidResponseListener (bid, options = {}) {
   if (!active || cookieConfig.from.indexOf('bidResponse') === -1) return
 
   const schemas = cookieConfig.bidResponseSchema
@@ -101,7 +102,12 @@ export function bidResponseListener (bid) {
     return data
   }, {})
 
-  syncData(data, undefined, { addPrefix: true })
+  if (Object.keys(data).length > 0) {
+    if (!(options.silent)) {
+      logInfo(`[cookies] syncing ${bid.bidderCode} bid response data.`)
+    }
+    syncData(data, undefined, { addPrefix: true })
+  }
 }
 
 /**
@@ -117,30 +123,47 @@ export function bidWonListener (bid, doc) {
     cookieConfig.from.indexOf('bidResponse') !== -1 ||
     cookieConfig.from.indexOf('winningBidResponse') !== -1
   )) {
-    bidResponseListener(bid)
+    bidResponseListener(bid, { silent: true })
   }
 
   // Set cookies from the main frame in the creative frame.
-  syncData(getDataObj(document), doc, { addPrefix: false, removePrefix: true })
+  let data = getDataObj(document)
+  syncData(data, doc, { addPrefix: false, removePrefix: true, silent: true })
+  const knownCookies = Object.keys(data)
+    .filter((d) => d.startsWith(cookieConfig.prefix))
+    .map((d) => d.substr(cookieConfig.prefix.length))
 
-  // Set cookies from the completed creative frame to the main frame.
-  // Do not add prefixes - the purpose of cookies is not unique to this module.
+  // Retrieve cookies from the completed creative frame to the main frame.
+  const getNestedDocDataObj = (doc) => {
+    data = getDataObj(doc)
+    data = Object.keys(data).reduce((d, key) => {
+      if (knownCookies.indexOf(key) !== -1 && !(key.startsWith(cookieConfig.prefix))) {
+        d[cookieConfig.prefix + key] = data[key]
+      } else {
+        d[key] = data[key]
+      }
+      return d
+    }, {})
+    return data
+  }
+
+  // Do not add prefixes - cookies don't belong to this module, unless the cookie is known
   if (cookieConfig.from.indexOf('creative') !== -1) {
     if (doc.readyState === 'complete') {
-      syncData(getDataObj(doc), undefined, { addPrefix: false })
+      syncData(getNestedDocDataObj(doc), undefined, { addPrefix: false })
     } else {
       if (doc.addEventListener) {
         doc.addEventListener('DOMContentLoaded', () => {
-          syncData(getDataObj(doc), undefined, { addPrefix: false })
+          syncData(getNestedDocDataObj(doc), undefined, { addPrefix: false })
         }, false)
       } else if (attachEvent) {
         doc.attachEvent('onreadystatechange', () => {
           if (document.readyState !== 'complete') return
-          syncData(getDataObj(doc), undefined, { addPrefix: false })
+          syncData(getNestedDocDataObj(doc), undefined, { addPrefix: false })
         })
       } else {
         setTimeout(() => {
-          syncData(getDataObj(doc), undefined, { addPrefix: false })
+          syncData(getNestedDocDataObj(doc), undefined, { addPrefix: false })
         }, 200)
       }
     }
@@ -172,6 +195,7 @@ function localStorageIsEnabled (doc) {
  * @param {Document} document - Document. Defaults to the current document.
  * @param {object} options - Additional configuration.
  * @param {boolean} options.addPrefix - Adds the prefix when setting data.
+ * @param {boolean} options.silent - Mutes the console.
  */
 function syncData (data, doc, options = {}) {
   Object.keys(data).forEach((key) => {
@@ -188,13 +212,17 @@ function syncData (data, doc, options = {}) {
       cookieConfig.storages.find((storage) => {
         if (storage === 'cookies') {
           if (!cookiesAreEnabled()) return false
-          logInfo(`[cookies] Setting cookie ${name} to ${data[key]} until ${cookieConfig.expires || 'session end'}`)
+          if (!(options.silent)) {
+            logInfo(`[cookies] Setting cookie ${name} to ${data[key]} until ${cookieConfig.expires || 'session end'}`)
+          }
           setCookie(name, data[key], cookieConfig.expires, cookieConfig.sameSite, doc)
           return true
         } else if (storage === 'localStorage') {
           if (!localStorageIsEnabled(doc)) return false
+          if (!(options.silent)) {
+            logInfo(`[cookies] Setting localstorage ${name} to ${data[key]}`)
+          }
           const docWindow = (doc) ? (doc.parentWindow || doc.defaultView) : window
-          logInfo(`[cookies] Setting localstorage ${name} to ${data[key]}`)
           docWindow.localStorage.setItem(name, data[key])
           return true
         }
