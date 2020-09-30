@@ -198,6 +198,13 @@ export const spec = {
     }
 
     validBidRequests.forEach(bid => {
+      // let win = utils.getWindowSelf();
+      // if (win.SDG) {
+
+      //   // win.SDG.getCN().getSlotByPosition(elId)) !== nul
+
+      // }
+
       payload.bids.push({
         bid: bid.bidId, sid: bid.params.sid, siz: bidSizes(bid), viz: elementInView(bid.adUnitCode)
       });
