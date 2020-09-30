@@ -627,6 +627,29 @@ describe('stroeerCore bid adapter', function () {
           assert.lengthOf(serverRequestInfo.data.bids, 2);
           assert.notProperty(serverRequestInfo, 'uids');
         });
+
+        describe('when SDG is present', () => {
+          it('should have zone field filled', () => {
+            win.SDG = {
+              getCN: function () {
+                return {
+                  getSlotByPosition: function (elementId) {
+                    queriedUnitCodes.push(elementId);
+                    return {
+                      getZone: function () {
+                        return 'zone1'
+                      }
+                    };
+                  }
+                }
+              }
+            }
+
+            const bidReq = buildBidderRequest();
+            const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq);
+            assert.propertyVal(serverRequestInfo.data.context, 'zone', 'zone1');
+          });
+        });
       });
     });
   });
