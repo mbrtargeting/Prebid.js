@@ -3,7 +3,7 @@ import {spec} from 'modules/stroeerCoreBidAdapter.js';
 import * as utils from 'src/utils.js';
 import {BANNER, VIDEO} from '../../../src/mediaTypes.js';
 
-describe.only('stroeerCore bid adapter', function () {
+describe('stroeerCore bid adapter', function () {
   let sandbox;
   let fakeServer;
   let bidderRequest;
@@ -253,16 +253,19 @@ describe.only('stroeerCore bid adapter', function () {
   }
 
   describe('slot location uses SDG API if available', () => {
-    let win;
     let queriedUnitCodes = [];
     beforeEach(() => {
-      win = setupSingleWindow(sandbox, [(createElement('div-1', 17)), (createElement('div-2', 54))]);
+      const visibleElements = [createElement('div-1', 17), createElement('div-2', 54)];
+      const invisibleElement = createElement('invisible-div-1', -10);
+      const win = setupSingleWindow(sandbox, visibleElements);
       win.SDG = {
         getCN: function () {
           return {
             getSlotByPosition: function (elementId) {
               queriedUnitCodes.push(elementId);
-              return {};
+              return {
+                getContainer: () => invisibleElement
+              }
             }
           }
         }
@@ -303,10 +306,14 @@ describe.only('stroeerCore bid adapter', function () {
         }],
       };
 
-      spec.buildRequests(bidderRequest.bids, bidderRequest);
+      const requests = spec.buildRequests(bidderRequest.bids, bidderRequest);
 
-      assert.equal(2, queriedUnitCodes.length);
-      assert.deepEqual(['div-1-alpha', 'div-2-alpha'], queriedUnitCodes);
+      requests.data.bids.forEach((bid) => {
+        assert.isFalse(bid.viz);
+      });
+
+      assert.deepInclude(queriedUnitCodes, 'div-1-alpha');
+      assert.deepInclude(queriedUnitCodes, 'div-2-alpha');
     });
   });
 
@@ -1198,8 +1205,9 @@ describe.only('stroeerCore bid adapter', function () {
 
   describe('get user syncs entry point', () => {
     let win;
+
     beforeEach(() => {
-      win = setupSingleWindow(sandbox);
+     win = setupSingleWindow(sandbox);
 
       // fake
       win.document.createElement = function () {
