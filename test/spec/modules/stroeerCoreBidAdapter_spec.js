@@ -475,8 +475,7 @@ describe('stroeerCore bid adapter', function () {
             'siz': [[300, 600], [160, 60]],
             'viz': true,
             'context': {
-              'position': 'div-1',
-              'adUnits': []
+              'position': 'div-1'
             }
           }, {
             'sid': 'ODA=',
@@ -484,14 +483,12 @@ describe('stroeerCore bid adapter', function () {
             'siz': [[728, 90]],
             'viz': true,
             'context': {
-              'position': 'div-2',
-              'adUnits': []
+              'position': 'div-2'
             }
           }],
           'user': {
             'euids': userIds
-          },
-          'context': {}
+          }
         };
 
         // trim away fields with undefined
@@ -502,8 +499,16 @@ describe('stroeerCore bid adapter', function () {
 
       it('should have expected context', () => {
         win.SDG = buildFakeSDG({
-          'div-1': ['adUnit-1', 'adUnit-2'],
-          'div-2': ['adUnit-3', 'adUnit-4', 'adUnit-5']
+          'div-1': {
+            adUnits: ['adUnit-1', 'adUnit-2'],
+            zone: 'zone-1',
+            pageType: 'pageType-1'
+          },
+          'div-2': {
+            adUnits: ['adUnit-3', 'adUnit-4', 'adUnit-5'],
+            zone: 'zone-2',
+            pageType: 'pageType-2'
+          }
         });
         const bidReq = buildBidderRequest();
 
@@ -511,11 +516,16 @@ describe('stroeerCore bid adapter', function () {
 
         assert.deepEqual(serverRequestInfo.data.bids[0].context, {
           'position': 'div-1',
-          'adUnits': ['adUnit-1', 'adUnit-2']
+          'adUnits': ['adUnit-1', 'adUnit-2'],
+          'zone': 'zone-1',
+          'pageType': 'pageType-1'
         });
+
         assert.deepEqual(serverRequestInfo.data.bids[1].context, {
           'position': 'div-2',
-          'adUnits': ['adUnit-3', 'adUnit-4', 'adUnit-5']
+          'adUnits': ['adUnit-3', 'adUnit-4', 'adUnit-5'],
+          'zone': 'zone-2',
+          'pageType': 'pageType-2'
         });
 
         function buildFakeSDG(config) {
@@ -525,8 +535,14 @@ describe('stroeerCore bid adapter', function () {
                 getSlotByPosition: function (position) {
                   return {
                     getAdUnits: function () {
-                      return config[position];
-                    }
+                      return config[position].adUnits;
+                    },
+                    getZone: function () {
+                      return config[position].zone;
+                    },
+                    getPageType: function () {
+                      return config[position].pageType;
+                    },
                   };
                 }
               };
@@ -690,36 +706,6 @@ describe('stroeerCore bid adapter', function () {
           const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq);
           assert.lengthOf(serverRequestInfo.data.bids, 2);
           assert.notProperty(serverRequestInfo, 'uids');
-        });
-
-        describe('when SDG is present', () => {
-          it('should have context field filled', () => {
-            win.SDG = buildFakeSDG({
-              zone: 'zone1',
-              pageType: 'pageType1'
-            });
-
-            const bidReq = buildBidderRequest();
-            const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq);
-
-            assert.propertyVal(serverRequestInfo.data.context, 'zone', 'zone1');
-            assert.propertyVal(serverRequestInfo.data.context, 'pageType', 'pageType1');
-
-            function buildFakeSDG(config) {
-              return {
-                getConfig: function () {
-                  return {
-                    getZone: function () {
-                      return config.zone;
-                    },
-                    getPageType: function () {
-                      return config.pageType;
-                    }
-                  };
-                }
-              }
-            }
-          });
         });
       });
     });
