@@ -204,13 +204,9 @@ export const spec = {
         sid: bid.params.sid,
         siz: bidSizes(bid),
         viz: elementInView(bid.adUnitCode),
-        context: getContext(bid.adUnitCode)
+        position: bid.adUnitCode
       });
     });
-
-    function getContext(adUnitCode) {
-      return {};
-    }
 
     return {
       method: 'POST', url: buildUrl(anyBid.params), data: payload

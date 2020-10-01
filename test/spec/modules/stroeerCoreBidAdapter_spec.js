@@ -459,9 +459,9 @@ describe.only('stroeerCore bid adapter', function () {
           'ssat': 2,
           'yl2': false,
           'bids': [{
-            'sid': 'NDA=', 'bid': 'bid1', 'siz': [[300, 600], [160, 60]], 'viz': true
+            'sid': 'NDA=', 'bid': 'bid1', 'siz': [[300, 600], [160, 60]], 'viz': true, 'position': 'div-1'
           }, {
-            'sid': 'ODA=', 'bid': 'bid2', 'siz': [[728, 90]], 'viz': true
+            'sid': 'ODA=', 'bid': 'bid2', 'siz': [[728, 90]], 'viz': true, 'position': 'div-2'
           }],
           'user': {
             'euids': userIds
@@ -644,7 +644,7 @@ describe.only('stroeerCore bid adapter', function () {
           }
         }
 
-        describe('when SDG is present', () => {
+        describe.skip('when SDG is present', () => {
           it('should have zone field filled', () => {
             win.SDG = buildFakeSDG({
               'div-1': {
