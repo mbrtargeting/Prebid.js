@@ -416,7 +416,7 @@ describe('stroeerCore bid adapter', function () {
           expected: 'https://other.com:871/xyz'
         }, {
           protocol: 'http:', params: {sid: 'ODA=', port: '234', path: '/xyz'}, expected: 'https://hb.adscale.de:234/xyz'
-        },];
+        }, ];
 
         samples.forEach(sample => {
           it(`should use ${sample.expected} as endpoint when given params ${JSON.stringify(sample.params)} and protocol ${sample.protocol}`,
@@ -509,6 +509,15 @@ describe('stroeerCore bid adapter', function () {
 
         const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq);
 
+        assert.deepEqual(serverRequestInfo.data.bids[0].context, {
+          'position': 'div-1',
+          'adUnits': ['adUnit-1', 'adUnit-2']
+        });
+        assert.deepEqual(serverRequestInfo.data.bids[1].context, {
+          'position': 'div-2',
+          'adUnits': ['adUnit-3', 'adUnit-4', 'adUnit-5']
+        });
+
         function buildFakeSDG(config) {
           return {
             getCN: function () {
@@ -524,15 +533,6 @@ describe('stroeerCore bid adapter', function () {
             }
           }
         }
-
-        assert.deepEqual(serverRequestInfo.data.bids[0].context, {
-          'position': 'div-1',
-          'adUnits': ['adUnit-1', 'adUnit-2']
-        });
-        assert.deepEqual(serverRequestInfo.data.bids[1].context, {
-          'position': 'div-2',
-          'adUnits': ['adUnit-3', 'adUnit-4', 'adUnit-5']
-        });
       });
 
       it('should handle banner sizes for pre version 3', () => {
@@ -692,21 +692,6 @@ describe('stroeerCore bid adapter', function () {
           assert.notProperty(serverRequestInfo, 'uids');
         });
 
-        function buildFakeSDG(config) {
-          return {
-            getConfig: function () {
-              return {
-                getZone: function () {
-                  return config.zone;
-                },
-                getPageType: function () {
-                  return config.pageType;
-                }
-              };
-            }
-          }
-        }
-
         describe('when SDG is present', () => {
           it('should have context field filled', () => {
             win.SDG = buildFakeSDG({
@@ -719,6 +704,21 @@ describe('stroeerCore bid adapter', function () {
 
             assert.propertyVal(serverRequestInfo.data.context, 'zone', 'zone1');
             assert.propertyVal(serverRequestInfo.data.context, 'pageType', 'pageType1');
+
+            function buildFakeSDG(config) {
+              return {
+                getConfig: function () {
+                  return {
+                    getZone: function () {
+                      return config.zone;
+                    },
+                    getPageType: function () {
+                      return config.pageType;
+                    }
+                  };
+                }
+              }
+            }
           });
         });
       });
@@ -1160,9 +1160,9 @@ describe('stroeerCore bid adapter', function () {
           price: '12345678',
           expectation: '12345678'
         },
-          {price: '1234.56789', expectation: '1234.567'}, {price: '12345.1234', expectation: '12345.12'},
-          {price: '123456.10', expectation: '123456.1'}, {price: '123456.105', expectation: '123456.1'},
-          {price: '1234567.0052', expectation: '1234567'},];
+        {price: '1234.56789', expectation: '1234.567'}, {price: '12345.1234', expectation: '12345.12'},
+        {price: '123456.10', expectation: '123456.1'}, {price: '123456.105', expectation: '123456.1'},
+        {price: '1234567.0052', expectation: '1234567'}, ];
         validPrices.forEach(test => {
           it(`should safely truncate ${test.price} to ${test.expectation}`, () => {
             const bidderResponse = buildBidderResponse();
@@ -1183,7 +1183,7 @@ describe('stroeerCore bid adapter', function () {
           });
         });
 
-        const invalidPrices = [{price: '123456789'}, {price: '123456.15'}, {price: '1234567.0152'}, {price: '1234567.1052'},];
+        const invalidPrices = [{price: '123456789'}, {price: '123456.15'}, {price: '1234567.0152'}, {price: '1234567.1052'}];
         invalidPrices.forEach(test => {
           it(`should error when price is ${test.price}`, function () {
             const bidderResponse = buildBidderResponse();
@@ -1207,7 +1207,7 @@ describe('stroeerCore bid adapter', function () {
     let win;
 
     beforeEach(() => {
-     win = setupSingleWindow(sandbox);
+      win = setupSingleWindow(sandbox);
 
       // fake
       win.document.createElement = function () {

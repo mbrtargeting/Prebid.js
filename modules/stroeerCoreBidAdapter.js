@@ -176,19 +176,8 @@ export const spec = {
       ssat: bidRequestWithSsat ? bidRequestWithSsat.params.ssat : 2,
       yl2: bidRequestWithYl2 ? bidRequestWithYl2.params.yl2 : (localStorage.sdgYieldtest === '1'),
       ab: win['yieldlove_ab'],
-      context: getContext()
+      context: getRequestContext()
     };
-
-    function getContext() {
-      try {
-        return {
-          zone: win.SDG.getConfig().getZone(),
-          pageType: win.SDG.getConfig().getPageType()
-        }
-      } catch (e) {
-        return {};
-      }
-    }
 
     const userIds = anyBid.userId;
 
@@ -206,18 +195,6 @@ export const spec = {
       };
     }
 
-    function bidSizes(bid) {
-      return utils.deepAccess(bid, 'mediaTypes.banner.sizes') || bid.sizes /* for prebid < 3 */ || [];
-    }
-
-    function getAdUnits(position) {
-      try {
-        return win.SDG.getCN().getSlotByPosition(position).getAdUnits()
-      } catch (e) {
-        return [];
-      }
-    }
-
     validBidRequests.forEach(bid => {
       payload.bids.push({
         bid: bid.bidId,
@@ -233,6 +210,29 @@ export const spec = {
 
     return {
       method: 'POST', url: buildUrl(anyBid.params), data: payload
+    }
+
+    function getRequestContext() {
+      try {
+        return {
+          zone: win.SDG.getConfig().getZone(),
+          pageType: win.SDG.getConfig().getPageType()
+        }
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function bidSizes(bid) {
+      return utils.deepAccess(bid, 'mediaTypes.banner.sizes') || bid.sizes /* for prebid < 3 */ || [];
+    }
+
+    function getAdUnits(position) {
+      try {
+        return win.SDG.getCN().getSlotByPosition(position).getAdUnits()
+      } catch (e) {
+        return [];
+      }
     }
   },
 
