@@ -159,6 +159,7 @@ export const spec = {
 
   buildRequests: function (validBidRequests = [], bidderRequest) {
     const anyBid = bidderRequest.bids[0];
+    const win = utils.getWindowSelf();
 
     setupGlobalNamespace(anyBid);
 
@@ -174,7 +175,7 @@ export const spec = {
       timeout: bidderRequest.timeout - (Date.now() - bidderRequest.auctionStart),
       ssat: bidRequestWithSsat ? bidRequestWithSsat.params.ssat : 2,
       yl2: bidRequestWithYl2 ? bidRequestWithYl2.params.yl2 : (localStorage.sdgYieldtest === '1'),
-      ab: utils.getWindowSelf()['yieldlove_ab']
+      ab: win['yieldlove_ab']
     };
 
     const userIds = anyBid.userId;
@@ -198,17 +199,18 @@ export const spec = {
     }
 
     validBidRequests.forEach(bid => {
-      // let win = utils.getWindowSelf();
-      // if (win.SDG) {
-
-      //   // win.SDG.getCN().getSlotByPosition(elId)) !== nul
-
-      // }
-
       payload.bids.push({
-        bid: bid.bidId, sid: bid.params.sid, siz: bidSizes(bid), viz: elementInView(bid.adUnitCode)
+        bid: bid.bidId,
+        sid: bid.params.sid,
+        siz: bidSizes(bid),
+        viz: elementInView(bid.adUnitCode),
+        context: getContext(bid.adUnitCode)
       });
     });
+
+    function getContext(adUnitCode) {
+      return {};
+    }
 
     return {
       method: 'POST', url: buildUrl(anyBid.params), data: payload

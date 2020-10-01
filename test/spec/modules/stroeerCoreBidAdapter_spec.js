@@ -3,7 +3,7 @@ import {spec} from 'modules/stroeerCoreBidAdapter.js';
 import * as utils from 'src/utils.js';
 import {BANNER, VIDEO} from '../../../src/mediaTypes.js';
 
-describe('stroeerCore bid adapter', function () {
+describe.only('stroeerCore bid adapter', function () {
   let sandbox;
   let fakeServer;
   let bidderRequest;
@@ -628,26 +628,38 @@ describe('stroeerCore bid adapter', function () {
           assert.notProperty(serverRequestInfo, 'uids');
         });
 
-        describe('when SDG is present', () => {
-          it('should have zone field filled', () => {
-            win.SDG = {
-              getCN: function () {
-                return {
-                  getSlotByPosition: function (elementId) {
-                    queriedUnitCodes.push(elementId);
-                    return {
-                      getZone: function () {
-                        return 'zone1'
-                      }
-                    };
-                  }
+        function buildFakeSDG(config) {
+          return {
+            getCN: function () {
+              return {
+                getSlotByPosition: function (elementId) {
+                  return {
+                    getZone: function () {
+                      return config[elementId].zone;
+                    }
+                  };
                 }
               }
             }
+          }
+        }
+
+        describe('when SDG is present', () => {
+          it('should have zone field filled', () => {
+            win.SDG = buildFakeSDG({
+              'div-1': {
+                zone: 'zone1'
+              },
+              'div-2': {
+                zone: 'zone2'
+              }
+            });
 
             const bidReq = buildBidderRequest();
             const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq);
-            assert.propertyVal(serverRequestInfo.data.context, 'zone', 'zone1');
+
+            assert.propertyVal(serverRequestInfo.data.bids[0].context, 'zone', 'zone1');
+            assert.propertyVal(serverRequestInfo.data.bids[1].context, 'zone', 'zone2');
           });
         });
       });
