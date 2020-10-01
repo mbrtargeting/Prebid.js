@@ -175,8 +175,20 @@ export const spec = {
       timeout: bidderRequest.timeout - (Date.now() - bidderRequest.auctionStart),
       ssat: bidRequestWithSsat ? bidRequestWithSsat.params.ssat : 2,
       yl2: bidRequestWithYl2 ? bidRequestWithYl2.params.yl2 : (localStorage.sdgYieldtest === '1'),
-      ab: win['yieldlove_ab']
+      ab: win['yieldlove_ab'],
+      context: getContext()
     };
+
+    function getContext() {
+      try {
+        return {
+          zone: win.SDG.getConfig().getZone(),
+          pageType: win.SDG.getConfig().getPageType()
+        }
+      } catch (e) {
+        return {};
+      }
+    }
 
     const userIds = anyBid.userId;
 
@@ -198,13 +210,24 @@ export const spec = {
       return utils.deepAccess(bid, 'mediaTypes.banner.sizes') || bid.sizes /* for prebid < 3 */ || [];
     }
 
+    function getAdUnits(position) {
+      try {
+        return win.SDG.getCN().getSlotByPosition(position).getAdUnits()
+      } catch (e) {
+        return [];
+      }
+    }
+
     validBidRequests.forEach(bid => {
       payload.bids.push({
         bid: bid.bidId,
         sid: bid.params.sid,
         siz: bidSizes(bid),
         viz: elementInView(bid.adUnitCode),
-        position: bid.adUnitCode
+        context: {
+          position: bid.adUnitCode,
+          adUnits: getAdUnits(bid.adUnitCode)
+        }
       });
     });
 
