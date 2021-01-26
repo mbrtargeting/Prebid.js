@@ -1,7 +1,7 @@
-import { assert } from 'chai'
-import { spec } from 'modules/stroeerCoreBidAdapter.js'
+import {assert} from 'chai'
+import {spec} from 'modules/stroeerCoreBidAdapter.js'
 import * as utils from 'src/utils.js'
-import { BANNER, VIDEO } from '../../../src/mediaTypes.js'
+import {BANNER, VIDEO} from '../../../src/mediaTypes.js'
 
 describe('stroeerCore bid adapter', function () {
   let sandbox;
@@ -347,7 +347,7 @@ describe('stroeerCore bid adapter', function () {
     assert.deepEqual(spec.supportedMediaTypes, [BANNER, VIDEO]);
   });
 
-  it('should have GDPR vendor list id (gvlid) set on the spec', function() {
+  it('should have GDPR vendor list id (gvlid) set on the spec', function () {
     assert.equal(spec.gvlid, 136);
   });
 
@@ -516,7 +516,7 @@ describe('stroeerCore bid adapter', function () {
           expected: 'https://other.com:871/xyz'
         }, {
           protocol: 'http:', params: {sid: 'ODA=', port: '234', path: '/xyz'}, expected: 'https://hb.adscale.de:234/xyz'
-        }, ];
+        },];
 
         samples.forEach(sample => {
           it(`should use ${sample.expected} as endpoint when given params ${JSON.stringify(sample.params)} and protocol ${sample.protocol}`,
@@ -594,8 +594,38 @@ describe('stroeerCore bid adapter', function () {
         assert.deepEqual(actualJsonPayload, expectedJsonPayload);
       });
 
+      it('should have expected global key values', () => {
+        win.SDG = buildFakeSDGForKeyValues({
+          adset: ['brsl'],
+          browserapp: ['chrome'],
+        });
+
+        const bidReq = buildBidderRequest();
+
+        const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
+
+        assert.deepEqual(serverRequestInfo.data.kvg, {
+          adset: ['brsl'],
+          browserapp: ['chrome'],
+        });
+
+        function buildFakeSDGForKeyValues(keyValues) {
+          return {
+            Publisher: {
+              getConfig: function() {
+                return {
+                  getKeyValues: function() {
+                    return keyValues;
+                  }
+                }
+              }
+            }
+          }
+        }
+      });
+
       it('should have expected context', () => {
-        win.SDG = buildFakeSDG({
+        win.SDG = buildFakeSDGContext({
           'div-1': {
             adUnits: ['adUnit-1', 'adUnit-2'],
             zone: 'zone-1',
@@ -625,7 +655,7 @@ describe('stroeerCore bid adapter', function () {
           'pageType': 'pageType-2'
         });
 
-        function buildFakeSDG(config) {
+        function buildFakeSDGContext(config) {
           return {
             getCN: function () {
               return {
@@ -1430,9 +1460,9 @@ describe('stroeerCore bid adapter', function () {
           price: '12345678',
           expectation: '12345678'
         },
-        {price: '1234.56789', expectation: '1234.567'}, {price: '12345.1234', expectation: '12345.12'},
-        {price: '123456.10', expectation: '123456.1'}, {price: '123456.105', expectation: '123456.1'},
-        {price: '1234567.0052', expectation: '1234567'}, ];
+          {price: '1234.56789', expectation: '1234.567'}, {price: '12345.1234', expectation: '12345.12'},
+          {price: '123456.10', expectation: '123456.1'}, {price: '123456.105', expectation: '123456.1'},
+          {price: '1234567.0052', expectation: '1234567'},];
         validPrices.forEach(test => {
           it(`should safely truncate ${test.price} to ${test.expectation}`, () => {
             const bidderResponse = buildBidderResponse();

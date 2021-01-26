@@ -209,7 +209,7 @@ export const spec = {
       ssl: isSecureWindow(),
       mpa: isMainPageAccessible(),
       timeout: bidderRequest.timeout - (Date.now() - bidderRequest.auctionStart),
-      ab: win['yieldlove_ab']
+      ab: win['yieldlove_ab'],
     };
 
     const userIds = anyBid.userId;
@@ -220,11 +220,16 @@ export const spec = {
     }
 
     const gdprConsent = bidderRequest.gdprConsent;
-
     if (gdprConsent && gdprConsent.consentString != null && gdprConsent.gdprApplies != null) {
+
       commonPayload.gdpr = {
         consent: gdprConsent.consentString, applies: gdprConsent.gdprApplies
       };
+    }
+
+    const globalKeyValues = getGlobalKeyValues();
+    if (globalKeyValues !== undefined) {
+      commonPayload.kvg = globalKeyValues;
     }
 
     function createPayload(bidRequests) {
@@ -324,6 +329,14 @@ export const spec = {
     function getAdUnits(position) {
       try {
         return win.SDG.getCN().getSlotByPosition(position).getAdUnits()
+      } catch (e) {
+        return undefined;
+      }
+    }
+
+    function getGlobalKeyValues() {
+      try {
+        return win.SDG.Publisher.getConfig().getKeyValues()
       } catch (e) {
         return undefined;
       }
