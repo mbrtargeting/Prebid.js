@@ -248,7 +248,8 @@ export const spec = {
         viz: elementInView(bidRequest.adUnitCode),
         vid: createVideoObject(bidRequest),
         ban: createBannerObject(bidRequest),
-        ctx: getContextFromSDG(bidRequest)
+        ctx: getContextFromSDG(bidRequest),
+        kvl: getLocalKeyValues(bidRequest.adUnitCode),
       }));
 
       return payload;
@@ -337,6 +338,14 @@ export const spec = {
     function getGlobalKeyValues() {
       try {
         return win.SDG.Publisher.getConfig().getKeyValues()
+      } catch (e) {
+        return undefined;
+      }
+    }
+
+    function getLocalKeyValues(position) {
+      try {
+        return win.SDG.getCN().getSlotByPosition(position).localTargeting
       } catch (e) {
         return undefined;
       }
