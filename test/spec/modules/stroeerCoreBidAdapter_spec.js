@@ -1,7 +1,7 @@
-import {assert} from 'chai'
-import {spec} from 'modules/stroeerCoreBidAdapter.js'
-import * as utils from 'src/utils.js'
-import {BANNER, VIDEO} from '../../../src/mediaTypes.js'
+import {assert} from 'chai';
+import {spec} from 'modules/stroeerCoreBidAdapter.js';
+import * as utils from 'src/utils.js';
+import {BANNER, VIDEO} from '../../../src/mediaTypes.js';
 
 describe('stroeerCore bid adapter', function () {
   let sandbox;
@@ -516,7 +516,7 @@ describe('stroeerCore bid adapter', function () {
           expected: 'https://other.com:871/xyz'
         }, {
           protocol: 'http:', params: {sid: 'ODA=', port: '234', path: '/xyz'}, expected: 'https://hb.adscale.de:234/xyz'
-        },];
+        }, ];
 
         samples.forEach(sample => {
           it(`should use ${sample.expected} as endpoint when given params ${JSON.stringify(sample.params)} and protocol ${sample.protocol}`,
@@ -614,7 +614,7 @@ describe('stroeerCore bid adapter', function () {
             Publisher: {
               getConfig: function() {
                 return {
-                  getKeyValues: function() {
+                  getFilteredKeyValues: function() {
                     return keyValues;
                   }
                 }
@@ -658,7 +658,9 @@ describe('stroeerCore bid adapter', function () {
             getCN: function () {
               return {
                 getSlotByPosition: function (position) {
-                  return {localTargeting: localTargeting[position]};
+                  return {
+                    getFilteredKeyValues: () => localTargeting[position]
+                  };
                 }
               };
             }
@@ -1502,9 +1504,9 @@ describe('stroeerCore bid adapter', function () {
           price: '12345678',
           expectation: '12345678'
         },
-          {price: '1234.56789', expectation: '1234.567'}, {price: '12345.1234', expectation: '12345.12'},
-          {price: '123456.10', expectation: '123456.1'}, {price: '123456.105', expectation: '123456.1'},
-          {price: '1234567.0052', expectation: '1234567'},];
+        {price: '1234.56789', expectation: '1234.567'}, {price: '12345.1234', expectation: '12345.12'},
+        {price: '123456.10', expectation: '123456.1'}, {price: '123456.105', expectation: '123456.1'},
+        {price: '1234567.0052', expectation: '1234567'}, ];
         validPrices.forEach(test => {
           it(`should safely truncate ${test.price} to ${test.expectation}`, () => {
             const bidderResponse = buildBidderResponse();

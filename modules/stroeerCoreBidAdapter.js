@@ -221,7 +221,6 @@ export const spec = {
 
     const gdprConsent = bidderRequest.gdprConsent;
     if (gdprConsent && gdprConsent.consentString != null && gdprConsent.gdprApplies != null) {
-
       commonPayload.gdpr = {
         consent: gdprConsent.consentString, applies: gdprConsent.gdprApplies
       };
@@ -337,7 +336,7 @@ export const spec = {
 
     function getGlobalKeyValues() {
       try {
-        return win.SDG.Publisher.getConfig().getKeyValues()
+        return win.SDG.Publisher.getConfig().getFilteredKeyValues();
       } catch (e) {
         return undefined;
       }
@@ -345,7 +344,7 @@ export const spec = {
 
     function getLocalKeyValues(position) {
       try {
-        return win.SDG.getCN().getSlotByPosition(position).localTargeting
+        return win.SDG.getCN().getSlotByPosition(position).getFilteredKeyValues();
       } catch (e) {
         return undefined;
       }
