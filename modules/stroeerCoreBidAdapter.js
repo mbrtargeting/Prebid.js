@@ -210,6 +210,7 @@ export const spec = {
       mpa: isMainPageAccessible(),
       timeout: bidderRequest.timeout - (Date.now() - bidderRequest.auctionStart),
       ab: win['yieldlove_ab'],
+      kvg: getGlobalKeyValues()
     };
 
     const userIds = anyBid.userId;
@@ -224,11 +225,6 @@ export const spec = {
       commonPayload.gdpr = {
         consent: gdprConsent.consentString, applies: gdprConsent.gdprApplies
       };
-    }
-
-    const globalKeyValues = getGlobalKeyValues();
-    if (globalKeyValues !== undefined) {
-      commonPayload.kvg = globalKeyValues;
     }
 
     function createPayload(bidRequests) {
