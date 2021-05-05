@@ -14,6 +14,7 @@ const BIDDER_CODE = 'stroeerCore';
 const DEFAULT_HOST = 'hb.adscale.de';
 const DEFAULT_PATH = '/dsh';
 const DEFAULT_PORT = '';
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const _externalCrypter = new Crypter('c2xzRWh5NXhpZmxndTRxYWZjY2NqZGNhTW1uZGZya3Y=', 'eWRpdkFoa2tub3p5b2dscGttamIySGhkZ21jcmg0Znk=');
 const _internalCrypter = new Crypter('1AE180CBC19A8CFEB7E1FCC000A10F5D892A887A2D9=', '0379698055BD41FD05AC543A3AAAD6589BC6E1B3626=');
@@ -177,6 +178,17 @@ export const spec = {
       }
     };
 
+    const sidCheckFn = bidReq => {
+      const sid = bidReq.params.sid;
+      if (!utils.isStr(sid)) {
+        return false;
+      }
+
+      const trimmedSid = sid.trim();
+
+      return parseInt(trimmedSid).toString() === trimmedSid || UUID_PATTERN.test(trimmedSid);
+    }
+
     function hasValidMediaType(bidReq) {
       return hasBanner(bidReq) || hasInstreamVideoOnly(bidReq);
     }
@@ -185,8 +197,7 @@ export const spec = {
       bidReq => `bid request ${bidReq.bidId} does not have a valid media type`));
     validators.push(createValidator((bidReq) => typeof bidReq.params === 'object',
       bidReq => `bid request ${bidReq.bidId} does not have custom params`));
-    validators.push(createValidator((bidReq) => utils.isStr(bidReq.params.sid),
-      bidReq => `bid request ${bidReq.bidId} does not have a sid string field`));
+    validators.push(createValidator(sidCheckFn, bidReq => `bid request [${bidReq.bidId}] does not have a valid sid [${bidReq.params.sid}] field. Must be a number or UUID of type String.`));
     validators.push(createValidator((bidReq) => bidReq.params.ssat === undefined || [1, 2].indexOf(bidReq.params.ssat) > -1,
       bidReq => `bid request ${bidReq.bidId} does not have a valid ssat value (must be 1 or 2)`));
 
@@ -239,7 +250,7 @@ export const spec = {
       payload.bids = bidRequests.map(bidRequest => ({
         // siz: [] - Still supported on the backend for backwards compatibility (size of banner bid)
         bid: bidRequest.bidId,
-        sid: bidRequest.params.sid,
+        sid: bidRequest.params.sid.trim(),
         viz: elementInView(bidRequest.adUnitCode),
         vid: createVideoObject(bidRequest),
         ban: createBannerObject(bidRequest),

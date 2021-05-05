@@ -99,7 +99,7 @@ describe('stroeerCore bid adapter', function () {
         }
       },
       params: {
-        sid: 'NDA='
+        sid: '58d0b4ba-faef-480a-b01a-030f1040010e'
       },
       userId: userIds
     }, {
@@ -112,7 +112,7 @@ describe('stroeerCore bid adapter', function () {
         }
       },
       params: {
-        sid: 'ODA='
+        sid: '03021343-fbc0-4106-ae2f-9c06dc2f61d1'
       },
       userId: userIds
     }],
@@ -125,6 +125,12 @@ describe('stroeerCore bid adapter', function () {
       delete bid.mediaTypes;
       bid.mediaType = 'banner';
     });
+    return request;
+  };
+
+  const buildBidderRequestWithInvalidSlotIdForFirstBid = (sid) => {
+    const request = buildBidderRequest();
+    request.bids[0].params.sid = sid;
     return request;
   };
 
@@ -315,7 +321,7 @@ describe('stroeerCore bid adapter', function () {
             }
           },
           params: {
-            sid: 'NDA='
+            sid: '58d0b4ba-faef-480a-b01a-030f1040010e'
           }
         }, {
           bidId: 'bid2',
@@ -327,7 +333,7 @@ describe('stroeerCore bid adapter', function () {
             }
           },
           params: {
-            sid: 'ODA='
+            sid: '03021343-fbc0-4106-ae2f-9c06dc2f61d1'
           }
         }],
       };
@@ -386,9 +392,26 @@ describe('stroeerCore bid adapter', function () {
       assert.isTrue(spec.isBidRequestValid(bidRequest));
     });
 
-    it('should exclude bids without slot id param', () => {
-      bidRequest.params.sid = undefined;
-      assert.isFalse(spec.isBidRequestValid(bidRequest));
+    describe("validate sid", () => {
+      it('should accept Long String as sid', () => {
+        bidRequest.params.sid = '  12345  ';
+        assert.isTrue(spec.isBidRequestValid(bidRequest));
+      });
+
+      it('should accept UUID as sid', () => {
+        bidRequest.params.sid = '  06e71b99-ed94-4e07-a9ab-dfdff0b338b4  ';
+        assert.isTrue(spec.isBidRequestValid(bidRequest));
+      });
+
+      it('should exclude bids without slot id param', () => {
+        bidRequest.params.sid = undefined;
+        assert.isFalse(spec.isBidRequestValid(bidRequest));
+      });
+
+      it('should reject sid which is not a Long String or UUID', () => {
+        bidRequest.params.sid = "666 I'm not something you can understand";
+        assert.isFalse(spec.isBidRequestValid(bidRequest));
+      });
     });
 
     it('should allow instream video bids', () => {
@@ -504,18 +527,18 @@ describe('stroeerCore bid adapter', function () {
       describe('should use custom url if provided', () => {
         const samples = [{
           protocol: 'http:',
-          params: {sid: 'ODA=', host: 'other.com', port: '234', path: '/xyz'},
+          params: {sid: '58d0b4ba-faef-480a-b01a-030f1040010e', host: 'other.com', port: '234', path: '/xyz'},
           expected: 'https://other.com:234/xyz'
         }, {
           protocol: 'https:',
-          params: {sid: 'ODA=', host: 'other.com', port: '234', path: '/xyz'},
+          params: {sid: '58d0b4ba-faef-480a-b01a-030f1040010e', host: 'other.com', port: '234', path: '/xyz'},
           expected: 'https://other.com:234/xyz'
         }, {
           protocol: 'https:',
-          params: {sid: 'ODA=', host: 'other.com', port: '234', securePort: '871', path: '/xyz'},
+          params: {sid: '58d0b4ba-faef-480a-b01a-030f1040010e', host: 'other.com', port: '234', securePort: '871', path: '/xyz'},
           expected: 'https://other.com:871/xyz'
         }, {
-          protocol: 'http:', params: {sid: 'ODA=', port: '234', path: '/xyz'}, expected: 'https://hb.adscale.de:234/xyz'
+          protocol: 'http:', params: {sid: '03021343-fbc0-4106-ae2f-9c06dc2f61d1', port: '234', path: '/xyz'}, expected: 'https://hb.adscale.de:234/xyz'
         }, ];
 
         samples.forEach(sample => {
@@ -569,14 +592,14 @@ describe('stroeerCore bid adapter', function () {
           'ssl': false,
           'yl2': false,
           'bids': [{
-            'sid': 'NDA=',
+            'sid': '58d0b4ba-faef-480a-b01a-030f1040010e',
             'bid': 'bid1',
             'viz': true,
             'ban': {
               'siz': [[300, 600], [160, 60]]
             }
           }, {
-            'sid': 'ODA=',
+            'sid': '03021343-fbc0-4106-ae2f-9c06dc2f61d1',
             'bid': 'bid2',
             'viz': true,
             'ban': {
@@ -777,6 +800,8 @@ describe('stroeerCore bid adapter', function () {
         });
       });
 
+
+
       it('should handle banner sizes for pre version 3', () => {
         // Version 3 changes the way how banner sizes are accessed.
         // We can support backwards compatibility with version 2.x
@@ -800,13 +825,13 @@ describe('stroeerCore bid adapter', function () {
               }
             },
             params: {
-              sid: 'NDA='
+              sid: '03021343-fbc0-4106-ae2f-9c06dc2f61d1'
             },
             userId: userIds
           }];
 
           const expectedBids = [{
-            'sid': 'NDA=',
+            'sid': '03021343-fbc0-4106-ae2f-9c06dc2f61d1',
             'bid': 'bid1',
             'viz': true,
             'vid': {
@@ -840,7 +865,7 @@ describe('stroeerCore bid adapter', function () {
                 }
               },
               params: {
-                sid: 'ODA='
+                sid: '58d0b4ba-faef-480a-b01a-030f1040010e'
               },
               userId: userIds
             }
@@ -848,7 +873,7 @@ describe('stroeerCore bid adapter', function () {
             bidderRequest.bids = [multiFormatBid];
 
             const expectedBids = [{
-              'sid': 'ODA=',
+              'sid': '58d0b4ba-faef-480a-b01a-030f1040010e',
               'bid': 'bid1',
               'viz': true,
               'ban': {
@@ -1020,7 +1045,7 @@ describe('stroeerCore bid adapter', function () {
                   }
                 },
                 params: {
-                  sid: 'ODA=',
+                  sid: '58d0b4ba-faef-480a-b01a-030f1040010e',
                   ssat: ssat
                 },
                 userId: userIds
@@ -1036,7 +1061,7 @@ describe('stroeerCore bid adapter', function () {
                   }
                 },
                 params: {
-                  sid: 'NDA=',
+                  sid: '03021343-fbc0-4106-ae2f-9c06dc2f61d1',
                   ssat: 1
                 },
                 userId: userIds
@@ -1052,7 +1077,7 @@ describe('stroeerCore bid adapter', function () {
                   }
                 },
                 params: {
-                  sid: 'ABC=',
+                  sid: 'd0052bc9-f446-4ac2-a246-0d1a7fb84164',
                   ssat: 2
                 },
                 userId: userIds
@@ -1060,20 +1085,9 @@ describe('stroeerCore bid adapter', function () {
 
               bidderRequest.bids = [bannerBid1, videoBid, bannerBid2];
 
-              const expectedBanner1Bid = [
-                {
-                  'sid': 'NDA=',
-                  'bid': 'bid8',
-                  'viz': true,
-                  'ban': {
-                    'siz': [[300, 600], [160, 60]]
-                  }
-                }
-              ];
-
               const expectedVideoBid = [
                 {
-                  'sid': 'ODA=',
+                  'sid': '58d0b4ba-faef-480a-b01a-030f1040010e',
                   'bid': 'bid3',
                   'viz': true,
                   'vid': {
@@ -1084,9 +1098,20 @@ describe('stroeerCore bid adapter', function () {
                 }
               ];
 
+              const expectedBanner1Bid = [
+                {
+                  'sid': '03021343-fbc0-4106-ae2f-9c06dc2f61d1',
+                  'bid': 'bid8',
+                  'viz': true,
+                  'ban': {
+                    'siz': [[300, 600], [160, 60]]
+                  }
+                }
+              ];
+
               const expectedbanner2Bid = [
                 {
-                  'sid': 'ABC=',
+                  'sid': 'd0052bc9-f446-4ac2-a246-0d1a7fb84164',
                   'bid': 'bid12',
                   'ban': {
                     'siz': [[100, 200], [300, 500]]
@@ -1624,7 +1649,7 @@ describe('stroeerCore bid adapter', function () {
 
     function prepForUserConnect(customUserConnectJsUrl = '') {
       const bidReq = buildBidderRequest();
-      assert.equal(bidReq.bids[0].params.sid, 'NDA=');
+      assert.equal(bidReq.bids[0].params.sid, '58d0b4ba-faef-480a-b01a-030f1040010e');
 
       if (customUserConnectJsUrl) {
         bidReq.bids[0].params.connectjsurl = customUserConnectJsUrl;
@@ -1660,7 +1685,7 @@ describe('stroeerCore bid adapter', function () {
       assert.isTrue(utils.insertElement.calledOnce);
       const element = utils.insertElement.lastCall.args[0];
 
-      assertConnectJs(element, 'https://js.adscale.de/userconnect.js', 'NDA=');
+      assertConnectJs(element, 'https://js.adscale.de/userconnect.js', '58d0b4ba-faef-480a-b01a-030f1040010e');
     });
 
     it('should still perform user connect when no sid found', () => {
@@ -1691,7 +1716,7 @@ describe('stroeerCore bid adapter', function () {
       assert.isTrue(utils.insertElement.calledOnce);
       const element = utils.insertElement.lastCall.args[0];
 
-      assertConnectJs(element, customUserConnectJsUrl, 'NDA=');
+      assertConnectJs(element, customUserConnectJsUrl, '58d0b4ba-faef-480a-b01a-030f1040010e');
     });
   });
 });
