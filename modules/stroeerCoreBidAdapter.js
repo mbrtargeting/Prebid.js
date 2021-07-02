@@ -210,8 +210,15 @@ export const spec = {
     const userIds = anyBid.userId;
     if (!utils.isEmpty(userIds)) {
       commonPayload.user = {
-        euids: userIds
+        euids: userIds,
       };
+    }
+
+    const eids = anyBid.userIdAsEids;
+    if (!utils.isEmpty(v)) {
+      commonPayload.user = Object.assign({
+        eids: eids
+      }, commonPayload.user || {});
     }
 
     const gdprConsent = bidderRequest.gdprConsent;
