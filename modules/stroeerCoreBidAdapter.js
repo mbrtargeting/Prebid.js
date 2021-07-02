@@ -215,7 +215,7 @@ export const spec = {
     }
 
     const eids = anyBid.userIdAsEids;
-    if (!utils.isEmpty(v)) {
+    if (!utils.isEmpty(eids)) {
       commonPayload.user = Object.assign({
         eids: eids
       }, commonPayload.user || {});
