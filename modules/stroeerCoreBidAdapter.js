@@ -215,6 +215,8 @@ export const spec = {
     }
 
     const gdprConsent = bidderRequest.gdprConsent;
+    const floor = bidderRequest.getFloor({mediaType: 'banner'});
+    console.log(`floor price picked: ${floor}`);
     if (gdprConsent && gdprConsent.consentString != null && gdprConsent.gdprApplies != null) {
       commonPayload.gdpr = {
         consent: gdprConsent.consentString, applies: gdprConsent.gdprApplies
