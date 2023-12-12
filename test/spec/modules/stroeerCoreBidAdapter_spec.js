@@ -871,53 +871,56 @@ describe('stroeerCore bid adapter', function () {
       describe('optional fields', () => {
         describe('version fields', () => {
           let pbVerStub
-          let mtVerStub
 
           beforeEach(() => {
             pbVerStub = sinon.stub(prebidGlobal, 'getGlobal')
-            win.SDG = {version: () => {
-              return ''
-            }}
-            mtVerStub = sinon.stub(win.SDG, 'version')
           });
 
           afterEach(() => {
             pbVerStub.restore()
-            mtVerStub.restore()
           });
 
           it('gets version variables', () => {
+            win.SDG = {version: () => {
+              return '1.8';
+            }};
             pbVerStub.returns({version: '1.2'});
-            mtVerStub.returns('1.8');
             win.YLHH.bidder.settings = {version: '1.1'};
             const bidReq = buildBidderRequest();
             const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
             assert.deepEqual(serverRequestInfo.data.ver, {'yl': '1.1', 'pb': '1.2', 'mt': '1.8'});
           });
           it('functions with no pb value', () => {
+            win.SDG = {version: () => {
+              return '1.8';
+            }};
             pbVerStub.returns({version: undefined});
             win.YLHH.bidder.settings = {version: '1.1'};
-            mtVerStub.returns('1.8');
             const bidReq = buildBidderRequest();
             const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
             assert.deepEqual(serverRequestInfo.data.ver, {'yl': '1.1', 'pb': undefined, 'mt': '1.8'});
           });
           it('functions with no yl value', () => {
+            win.SDG = {version: () => {
+              return '1.8';
+            }};
             pbVerStub.returns({version: '2'});
-            mtVerStub.returns('1.8');
             const bidReq = buildBidderRequest();
             const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
             assert.deepEqual(serverRequestInfo.data.ver, {'pb': '2', 'yl': undefined, 'mt': '1.8'});
           });
           it('functions with no mt value', () => {
+            win.SDG = {version: () => {
+              return undefined;
+            }};
             pbVerStub.returns({version: '1.2'});
             win.YLHH.bidder.settings = {version: '1.1'};
-            mtVerStub.returns(undefined);
             const bidReq = buildBidderRequest();
             const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
             assert.deepEqual(serverRequestInfo.data.ver, {'yl': '1.1', 'pb': '1.2', 'mt': undefined});
           });
           it('functions with no mt version function', () => {
+            win.SDG = {};
             pbVerStub.returns({version: '1.2'});
             win.YLHH.bidder.settings = {version: '1.1'};
             const bidReq = buildBidderRequest();
@@ -925,6 +928,9 @@ describe('stroeerCore bid adapter', function () {
             assert.deepEqual(serverRequestInfo.data.ver, {'yl': '1.1', 'pb': '1.2', 'mt': undefined});
           });
           it('functions with no values', () => {
+            win.SDG = {version: () => {
+              return undefined;
+            }};
             pbVerStub.returns({version: undefined});
             const bidReq = buildBidderRequest();
             const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];

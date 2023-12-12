@@ -153,7 +153,7 @@ function groupBy(array, keyFns) {
 
 function getVersionValues (win) {
   const pbjs = getGlobal();
-  var versionObject = {
+  const versionObject = {
     yl: win.YLHH?.bidder?.settings?.version,
     pb: pbjs.version
   };
