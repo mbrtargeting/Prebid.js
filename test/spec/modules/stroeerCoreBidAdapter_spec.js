@@ -870,15 +870,14 @@ describe('stroeerCore bid adapter', function () {
 
       describe('optional fields', () => {
         describe('version fields', () => {
-
           let pbVerStub
           let mtVerStub
 
           beforeEach(() => {
             pbVerStub = sinon.stub(prebidGlobal, 'getGlobal')
-            win.SDG = {version:  () => {
-                return ""
-              }}
+            win.SDG = {version: () => {
+              return ''
+            }}
             mtVerStub = sinon.stub(win.SDG, 'version')
           });
 
