@@ -153,14 +153,11 @@ function groupBy(array, keyFns) {
 
 function getVersionValues (win) {
   const pbjs = getGlobal();
-  const versionObject = {
+  return {
     yl: win.YLHH?.bidder?.settings?.version,
-    pb: pbjs.version
+    pb: pbjs.version,
+    mt: win?.SDG?.version && win.SDG.version()
   };
-
-  versionObject.mt = win?.SDG?.version && win.SDG.version()
-
-  return versionObject
 }
 
 function divideBidRequestsBySsat(bidRequests) {
