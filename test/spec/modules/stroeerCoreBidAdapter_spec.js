@@ -3,6 +3,8 @@ import {spec} from 'modules/stroeerCoreBidAdapter.js';
 import * as utils from 'src/utils.js';
 import {BANNER, VIDEO} from '../../../src/mediaTypes.js';
 import * as prebidGlobal from '../../../src/prebidGlobal';
+import sinon from 'sinon';
+import * as ajax from 'src/ajax.js';
 
 describe('stroeerCore bid adapter', function () {
   let sandbox;
@@ -615,7 +617,6 @@ describe('stroeerCore bid adapter', function () {
 
         // trim away fields with undefined
         const actualJsonPayload = JSON.parse(JSON.stringify(serverRequestInfo.data));
-
         assert.deepEqual(actualJsonPayload, expectedJsonPayload);
 
         generateUUIDStub.restore();
@@ -1367,15 +1368,12 @@ describe('stroeerCore bid adapter', function () {
     });
 
     it('should call endpoint when it exists', () => {
-      fakeServer.respondWith('');
+      const ajaxStub = sandbox.stub(ajax, 'ajax');
+
       spec.interpretResponse({body: buildBidderResponseWithTep()});
-      fakeServer.respond();
 
-      assert.equal(fakeServer.requests.length, 1);
-      const request = fakeServer.requests[0];
-
-      assert.equal(request.method, 'GET');
-      assert.equal(request.url, '//hb.adscale.de/sspReqId/5f465360-cb11-44ee-b0be-b47a4f583521/39000');
+      assert.isTrue(ajaxStub.calledOnce);
+      assert.isTrue(ajaxStub.calledWith('//hb.adscale.de/sspReqId/5f465360-cb11-44ee-b0be-b47a4f583521/39000', sinon.match.any))
     });
 
     it('should not call endpoint when endpoint field not present', () => {
