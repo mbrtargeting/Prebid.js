@@ -4,13 +4,7 @@ import {BANNER, VIDEO} from '../src/mediaTypes.js'
 import * as utils from '../src/utils.js'
 import {getGlobal} from '../src/prebidGlobal.js'
 
-// Do not import POLYFILLS from core-js. Most likely until next major update (v4).
-// Prebid.js committers updated core-js to version 3 on v3.19.0 release (9/5/2020).
-// This broke imports. We need to be backwards compatible since this adapter is copied into
-// other prebids that may be older than the latest version. Try use alternative
-// implementation or put polyfill directly at the end of this file as we did for 'find' function.
-// import find from 'core-js-pure/features/array/find.js';
-
+const GVL_ID = 136;
 const BIDDER_CODE = 'stroeerCore';
 const DEFAULT_HOST = 'hb.adscale.de';
 const DEFAULT_PATH = '/dsh';
@@ -21,14 +15,6 @@ const _internalCrypter = new Crypter('1AE180CBC19A8CFEB7E1FCC000A10F5D892A887A2D
 
 const isSecureWindow = () => utils.getWindowSelf().location.protocol === 'https:';
 const isMainPageAccessible = () => getMostAccessibleTopWindow() === utils.getWindowTop();
-
-function getTopWindowReferrer() {
-  try {
-    return utils.getWindowTop().document.referrer;
-  } catch (e) {
-    return '';
-  }
-}
 
 function getStroeerCore() {
   let win = utils.getWindowSelf();
@@ -138,7 +124,7 @@ function groupBy(array, keyFns) {
   const groups = [];
 
   array.forEach(element => {
-    let group = find(groups, group => keys.every(keyName => group.key[keyName] === keyFns[keyName](utils.deepAccess(element, keyName))));
+    let group = groups.find(group => keys.every(keyName => group.key[keyName] === keyFns[keyName](utils.deepAccess(element, keyName))));
     if (!group) {
       const key = {};
       keys.forEach(name => key[name] = keyFns[name](utils.deepAccess(element, name)));
@@ -166,8 +152,8 @@ function divideBidRequestsBySsat(bidRequests) {
 
 export const spec = {
   code: BIDDER_CODE,
+  gvlid: GVL_ID,
   supportedMediaTypes: [BANNER, VIDEO],
-  gvlid: 136,
 
   isBidRequestValid: (function () {
     const validators = [];
@@ -211,15 +197,14 @@ export const spec = {
 
     const commonPayload = {
       id: utils.generateUUID(),
-      ref: getTopWindowReferrer(),
+      ref: refererInfo.ref,
       ssl: isSecureWindow(),
       mpa: isMainPageAccessible(),
       ver: getVersionValues(win),
       timeout: bidderRequest.timeout - (Date.now() - bidderRequest.auctionStart),
       ab: win['yieldlove_ab'],
       kvg: getGlobalKeyValues(),
-      // page is available on v7
-      url: refererInfo && (refererInfo.page || refererInfo.canonicalUrl || refererInfo.referer),
+      url: refererInfo.page,
       schain: anyBid.schain
     };
 
@@ -233,12 +218,17 @@ export const spec = {
     }
 
     const gdprConsent = bidderRequest.gdprConsent;
-
     if (gdprConsent) {
       commonPayload.gdpr = {
         consent: gdprConsent.consentString,
         applies: gdprConsent.gdprApplies
       };
+    }
+
+    const DSA_KEY = 'ortb2.regs.ext.dsa';
+    const dsa = utils.deepAccess(bidderRequest, DSA_KEY);
+    if (dsa) {
+      utils.deepSetValue(commonPayload, DSA_KEY, dsa);
     }
 
     const serverRequestInfos = [];
@@ -260,8 +250,8 @@ export const spec = {
     }
 
     function createPayload(bidRequests, customAttrsFn) {
-      const bidRequestWithSsat = find(bidRequests, bidRequest => bidRequest.params.ssat);
-      const bidRequestWithYl2 = find(bidRequests, bidRequest => bidRequest.params.yl2);
+      const bidRequestWithSsat = bidRequests.find(bidRequest => bidRequest.params.ssat);
+      const bidRequestWithYl2 = bidRequests.find(bidRequest => bidRequest.params.yl2);
 
       const payload = Object.assign({
         ssat: bidRequestWithSsat ? bidRequestWithSsat.params.ssat : undefined,
@@ -348,7 +338,7 @@ export const spec = {
         return Object.assign({}, floor, {size: size})
       });
 
-      const floorWithCurrency = find([defaultFloor].concat(sizeFloors), floor => floor.currency);
+      const floorWithCurrency = [defaultFloor].concat(sizeFloors).find(floor => floor.currency);
 
       if (!floorWithCurrency) {
         return undefined;
@@ -446,7 +436,8 @@ export const spec = {
           creativeId: '',
           mediaType,
           meta: {
-            advertiserDomains: bidResponse.adomain
+            advertiserDomains: bidResponse.adomain,
+            dsa: bidResponse.dsa
           },
 
           // Custom fields
@@ -753,40 +744,3 @@ function binb2str(bin) {
 }
 
 /* eslint-enable camelcase */
-
-// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/find#Polyfill
-function find(obj, predicate) {
-  // 1. Let O be ? ToObject(this value).
-  var o = Object(obj);
-
-  // 2. Let len be ? ToLength(? Get(O, "length")).
-  var len = o.length >>> 0;
-
-  // 3. If IsCallable(predicate) is false, throw a TypeError exception.
-  if (typeof predicate !== 'function') {
-    throw TypeError('predicate must be a function');
-  }
-
-  // 4. If thisArg was supplied, let T be thisArg; else let T be undefined.
-  var thisArg = arguments[1];
-
-  // 5. Let k be 0.
-  var k = 0;
-
-  // 6. Repeat, while k < len
-  while (k < len) {
-    // a. Let Pk be ! ToString(k).
-    // b. Let kValue be ? Get(O, Pk).
-    // c. Let testResult be ToBoolean(? Call(predicate, T, « kValue, k, O »)).
-    // d. If testResult is true, return kValue.
-    var kValue = o[k];
-    if (predicate.call(thisArg, kValue, k, o)) {
-      return kValue;
-    }
-    // e. Increase k by 1.
-    k++;
-  }
-
-  // 7. Return undefined.
-  return undefined;
-}

@@ -91,7 +91,8 @@ describe('stroeerCore bid adapter', function () {
     timeout: 5000,
     auctionStart: 10000,
     refererInfo: {
-      referer: 'https://www.example.com/index.html'
+      page: 'https://www.example.com/monkey/index.html',
+      ref: 'https://www.example.com/?search=monkey'
     },
     bids: [{
       bidId: 'bid1',
@@ -274,7 +275,7 @@ describe('stroeerCore bid adapter', function () {
   }
 
   function setupNestedWindows(sandBox, placementElements = [createElement('div-1', 17), createElement('div-2', 54)]) {
-    const topWin = createWindow('http://www.abc.org/', {referrer: 'http://www.google.com/?query=monkey'});
+    const topWin = createWindow('http://www.abc.org/');
     topWin.innerHeight = 800;
 
     const midWin = createWindow('http://www.abc.org/', {parent: topWin, top: topWin, frameElement: createElement()});
@@ -317,37 +318,9 @@ describe('stroeerCore bid adapter', function () {
     });
 
     it('visibility of both slots should be determined based on SDG ad unit codes', () => {
-      bidderRequest = {
-        bidderRequestId: 'bidder-request-id-123',
-        bidderCode: 'stroeerCore',
-        timeout: 5000,
-        auctionStart: 10000,
-        bids: [{
-          bidId: 'bid1',
-          bidder: 'stroeerCore',
-          adUnitCode: '137',
-          mediaTypes: {
-            banner: {
-              sizes: [[300, 600], [160, 60]],
-            }
-          },
-          params: {
-            sid: 'NDA='
-          }
-        }, {
-          bidId: 'bid2',
-          bidder: 'stroeerCore',
-          adUnitCode: '248',
-          mediaTypes: {
-            banner: {
-              sizes: [[728, 90]],
-            }
-          },
-          params: {
-            sid: 'ODA='
-          }
-        }],
-      };
+      // pre-assert in case base setup has changed
+      assert.equal(bidderRequest.bids[0].adUnitCode, '137');
+      assert.equal(bidderRequest.bids[1].adUnitCode, '248');
 
       const requests = spec.buildRequests(bidderRequest.bids, bidderRequest)[0];
 
@@ -589,11 +562,11 @@ describe('stroeerCore bid adapter', function () {
         const expectedJsonPayload = {
           'id': UUID,
           'timeout': expectedTimeout,
-          'ref': topWin.document.referrer,
+          'ref': 'https://www.example.com/?search=monkey',
           'mpa': true,
           'ssl': false,
           'yl2': false,
-          'url': 'https://www.example.com/index.html',
+          'url': 'https://www.example.com/monkey/index.html',
           'bids': [{
             'sid': 'NDA=',
             'bid': 'bid1',
@@ -1200,44 +1173,79 @@ describe('stroeerCore bid adapter', function () {
           assert.deepNestedPropertyVal(bid, 'ban.fp.siz', [{w: 160, h: 60, p: 2.7}]);
         });
 
-        it('should add all user data if available', () => {
-          const bidReq = buildBidderRequest();
+        describe('ortb2 interface', () => {
+          it('should add all user data if available', () => {
+            const bidReq = buildBidderRequest();
 
-          const ortb2 = {
-            user: {
-              data: [
-                {
-                  name: 'example-site.com',
-                  ext: {
-                    segtax: '1',
-                    segclass: '123'
+            const ortb2 = {
+              user: {
+                data: [
+                  {
+                    name: 'example-site.com',
+                    ext: {
+                      segtax: '1',
+                      segclass: '123'
+                    },
+                    segment: [{id: '12'}, {id: '10'}]
                   },
-                  segment: [{id: '12'}, {id: '10'}]
+                  {
+                    name: 'example-provider.com',
+                    segment: [{
+                      id: '2',
+                      name: 'name',
+                      value: 'value',
+                      ext: {
+                        xyz: 'abc'
+                      }
+                    }]
+                  }
+                ]
+              }
+            }
+
+            bidReq.ortb2 = utils.deepClone(ortb2);
+
+            const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
+
+            const actualUserData = serverRequestInfo.data.user.data;
+            const expectedUserData = ortb2.user.data;
+
+            assert.deepEqual(actualUserData, expectedUserData);
+          });
+
+          it('should add the DSA signals', () => {
+            const bidReq = buildBidderRequest();
+            const dsa = {
+              required: 3,
+              pubrender: 0,
+              datatopub: 2,
+              transparency: [
+                {
+                  domain: 'testplatform.com',
+                  params: [1],
                 },
                 {
-                  name: 'example-provider.com',
-                  segment: [{
-                    id: '2',
-                    name: 'name',
-                    value: 'value',
-                    ext: {
-                      xyz: 'abc'
-                    }
-                  }]
+                  domain: 'testdomain.com',
+                  params: [1, 2]
                 }
               ]
             }
-          }
+            const ortb2 = {
+              regs: {
+                ext: {
+                  dsa
+                }
+              }
+            }
 
-          bidReq.ortb2 = utils.deepClone(ortb2);
+            bidReq.ortb2 = utils.deepClone(ortb2);
 
-          const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
+            const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
+            const sentOrtb2 = serverRequestInfo.data.ortb2;
 
-          const actualUserData = serverRequestInfo.data.user.data;
-          const expectedUserData = ortb2.user.data;
-
-          assert.deepEqual(actualUserData, expectedUserData);
-        })
+            assert.deepEqual(sentOrtb2, ortb2);
+          });
+        });
       });
 
       describe('Split bid requests', () => {
@@ -1462,9 +1470,28 @@ describe('stroeerCore bid adapter', function () {
       const response = buildBidderResponse();
       response.bids[0] = Object.assign(response.bids[0], {adomain: ['website.org', 'domain.com']});
       const result = spec.interpretResponse({body: response});
-      assert.deepPropertyVal(result[0], 'meta', {advertiserDomains: ['website.org', 'domain.com']});
-      // nothing provided for the second bid
-      assert.deepPropertyVal(result[1], 'meta', {advertiserDomains: undefined});
+      assert.deepPropertyVal(result[0].meta, 'advertiserDomains', ['website.org', 'domain.com']);
+      assert.propertyVal(result[1].meta, 'advertiserDomains', undefined);
+    });
+
+    it('should add dsa info to meta object', () => {
+      const dsaResponse = {
+        behalf: 'AdvertiserA',
+        paid: 'AdvertiserB',
+        transparency: [{
+          domain: 'dspexample.com',
+          params: [1, 2],
+        }],
+        adrender: 1
+      };
+
+      const response = buildBidderResponse();
+      response.bids[0] = Object.assign(response.bids[0], {dsa: utils.deepClone(dsaResponse)});
+
+      const result = spec.interpretResponse({body: response});
+
+      assert.deepPropertyVal(result[0].meta, 'dsa', dsaResponse);
+      assert.propertyVal(result[1].meta, 'dsa', undefined);
     });
 
     describe('should add generateAd method on bid object', () => {
