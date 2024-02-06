@@ -1216,17 +1216,17 @@ describe('stroeerCore bid adapter', function () {
           it('should add the DSA signals', () => {
             const bidReq = buildBidderRequest();
             const dsa = {
-              required: 3,
+              dsarequired: 3,
               pubrender: 0,
               datatopub: 2,
               transparency: [
                 {
                   domain: 'testplatform.com',
-                  params: [1],
+                  dsaparams: [1],
                 },
                 {
                   domain: 'testdomain.com',
-                  params: [1, 2]
+                  dsaparams: [1, 2]
                 }
               ]
             }
@@ -1480,7 +1480,7 @@ describe('stroeerCore bid adapter', function () {
         paid: 'AdvertiserB',
         transparency: [{
           domain: 'dspexample.com',
-          params: [1, 2],
+          dsaparams: [1, 2],
         }],
         adrender: 1
       };
