@@ -1466,7 +1466,7 @@ describe('stroeerCore bid adapter', function () {
       assert.propertyVal(result[0], 'ropFactor', 1.2)
     });
 
-    it('should add data to meta object', () => {
+    it('should add advertiser domains to meta object', () => {
       const response = buildBidderResponse();
       response.bids[0] = Object.assign(response.bids[0], {adomain: ['website.org', 'domain.com']});
       const result = spec.interpretResponse({body: response});
