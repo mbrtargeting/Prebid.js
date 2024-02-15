@@ -849,7 +849,7 @@ describe('stroeerCore bid adapter', function () {
 
           beforeEach(() => {
             pbVerStub = sinon.stub(prebidGlobal, 'getGlobal')
-            win.SDG = {version: () => mtVersion};
+            win.SDG = {get version() { return mtVersion; }};
           });
 
           afterEach(() => {

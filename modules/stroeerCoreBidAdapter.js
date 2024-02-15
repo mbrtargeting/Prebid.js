@@ -142,7 +142,7 @@ function getVersionValues (win) {
   return {
     yl: win.YLHH?.bidder?.settings?.version,
     pb: pbjs.version,
-    mt: win?.SDG?.version && win.SDG.version()
+    mt: win.SDG?.version
   };
 }
 
