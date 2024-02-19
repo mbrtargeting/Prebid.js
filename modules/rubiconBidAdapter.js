@@ -17,10 +17,15 @@ import {
   logMessage,
   logWarn,
   mergeDeep,
-  parseSizesInput, _each
+  parseSizesInput,
+  pick,
+  _each
 } from '../src/utils.js';
 import {getAllOrtbKeywords} from '../libraries/keywords/keywords.js';
-import {convertTypes} from '../libraries/transformParamsUtils/convertTypes.js';
+
+/**
+ * @typedef {import('../src/adapters/bidderFactory.js').BidRequest} BidRequest
+ */
 
 const DEFAULT_INTEGRATION = 'pbjs_lite';
 const DEFAULT_PBS_INTEGRATION = 'pbjs';
@@ -694,6 +699,10 @@ export const spec = {
           bid.mediaType = ad.creative_type;
         }
 
+        if (ad.dsa && Object.keys(ad.dsa).length) {
+          bid.meta.dsa = ad.dsa;
+        }
+
         if (ad.adomain) {
           bid.meta.advertiserDomains = Array.isArray(ad.adomain) ? ad.adomain : [ad.adomain];
         }
@@ -766,19 +775,6 @@ export const spec = {
         url: `https://${rubiConf.syncHost || 'eus'}.rubiconproject.com/usync.html` + params
       };
     }
-  },
-  /**
-   * Covert bid param types for S2S
-   * @param {Object} params bid params
-   * @param {Boolean} isOpenRtb boolean to check openrtb2 protocol
-   * @return {Object} params bid params
-   */
-  transformBidParams: function(params, isOpenRtb) {
-    return convertTypes({
-      'accountId': 'number',
-      'siteId': 'number',
-      'zoneId': 'number'
-    }, params);
   }
 };
 
@@ -916,6 +912,7 @@ function applyFPD(bidRequest, mediaType, data) {
   let impExtData = deepAccess(bidRequest.ortb2Imp, 'ext.data') || {};
 
   const gpid = deepAccess(bidRequest, 'ortb2Imp.ext.gpid');
+  const dsa = deepAccess(fpd, 'regs.ext.dsa');
   const SEGTAX = {user: [4], site: [1, 2, 5, 6]};
   const MAP = {user: 'tg_v.', site: 'tg_i.', adserver: 'tg_i.dfp_ad_unit_code', pbadslot: 'tg_i.pbadslot', keywords: 'kw'};
   const validate = function(prop, key, parentName) {
@@ -971,9 +968,56 @@ function applyFPD(bidRequest, mediaType, data) {
       data['p_gpid'] = gpid;
     }
 
+    // add dsa signals
+    if (dsa && Object.keys(dsa).length) {
+      pick(dsa, [
+        'dsainfo', (dsainfo) => data['dsainfo'] = dsainfo,
+        'dsarequired', (required) => data['dsarequired'] = required,
+        'pubrender', (pubrender) => data['dsapubrender'] = pubrender,
+        'datatopub', (datatopub) => data['dsadatatopubs'] = datatopub,
+        'transparency', (transparency) => {
+          if (Array.isArray(transparency) && transparency.length) {
+            data['dsatransparency'] = transparency.reduce((param, transp) => {
+              if (param) {
+                param += '~~'
+              }
+              return param += `${transp.domain}~${transp.dsaparams.join('_')}`
+            }, '')
+          }
+        }
+      ])
+    }
+
     // only send one of pbadslot or dfp adunit code (prefer pbadslot)
     if (data['tg_i.pbadslot']) {
       delete data['tg_i.dfp_ad_unit_code'];
+    }
+
+    // High Entropy stuff -> sua object is the ORTB standard (default to pass unless specifically disabled)
+    const clientHints = deepAccess(fpd, 'device.sua');
+    if (clientHints && rubiConf.chEnabled !== false) {
+      // pick out client hints we want to send (any that are undefined or empty will NOT be sent)
+      pick(clientHints, [
+        'architecture', arch => data.m_ch_arch = arch,
+        'bitness', bitness => data.m_ch_bitness = bitness,
+        'browsers', browsers => {
+          if (!Array.isArray(browsers)) return;
+          // reduce down into ua and full version list attributes
+          const [ua, fullVer] = browsers.reduce((accum, browserData) => {
+            accum[0].push(`"${browserData?.brand}"|v="${browserData?.version?.[0]}"`);
+            accum[1].push(`"${browserData?.brand}"|v="${browserData?.version?.join?.('.')}"`);
+            return accum;
+          }, [[], []]);
+          data.m_ch_ua = ua?.join?.(',');
+          data.m_ch_full_ver = fullVer?.join?.(',');
+        },
+        'mobile', isMobile => data.m_ch_mobile = `?${isMobile}`,
+        'model', model => data.m_ch_model = model,
+        'platform', platform => {
+          data.m_ch_platform = platform?.brand;
+          data.m_ch_platform_ver = platform?.version?.join?.('.');
+        }
+      ])
     }
   } else {
     if (Object.keys(impExt).length) {
@@ -1156,8 +1200,7 @@ export function hasValidVideoParams(bid) {
   var requiredParams = {
     mimes: arrayType,
     protocols: arrayType,
-    linearity: numberType,
-    api: arrayType
+    linearity: numberType
   }
   // loop through each param and verify it has the correct
   Object.keys(requiredParams).forEach(function(param) {
@@ -1172,7 +1215,7 @@ export function hasValidVideoParams(bid) {
 /**
  * Make sure the required params are present
  * @param {Object} schain
- * @param {Bool}
+ * @param {boolean}
  */
 export function hasValidSupplyChainParams(schain) {
   let isValid = false;
