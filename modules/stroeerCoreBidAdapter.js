@@ -9,6 +9,7 @@ const BIDDER_CODE = 'stroeerCore';
 const DEFAULT_HOST = 'hb.adscale.de';
 const DEFAULT_PATH = '/dsh';
 const DEFAULT_PORT = '';
+const DEFAULT_PROTOCOL = 'https';
 
 const _externalCrypter = new Crypter('c2xzRWh5NXhpZmxndTRxYWZjY2NqZGNhTW1uZGZya3Y=', 'eWRpdkFoa2tub3p5b2dscGttamIySGhkZ21jcmg0Znk=');
 const _internalCrypter = new Crypter('1AE180CBC19A8CFEB7E1FCC000A10F5D892A887A2D9=', '0379698055BD41FD05AC543A3AAAD6589BC6E1B3626=');
@@ -73,12 +74,8 @@ function elementInView(elementId) {
   return undefined;
 }
 
-function buildUrl({host: hostname = DEFAULT_HOST, port = DEFAULT_PORT, securePort, path: pathname = DEFAULT_PATH}) {
-  if (securePort) {
-    port = securePort;
-  }
-
-  return utils.buildUrl({protocol: 'https', hostname, port, pathname});
+function buildUrl({host: hostname = DEFAULT_HOST, port = DEFAULT_PORT, path: pathname = DEFAULT_PATH, protocol = DEFAULT_PROTOCOL}) {
+  return utils.buildUrl({protocol, hostname, port, pathname});
 }
 
 function setupGlobalNamespace(anyBid) {
@@ -492,8 +489,7 @@ export const spec = {
 
   getUserSyncs: function (syncOptions, serverResponses) {
     // WARNING: we are breaking rules by inserting sync elements ourselves instead of prebid.
-    // This is ok as we are using our own prebid.js build. This is not an official adapter yet.
-    // To make official we need to revisit how we do user matching along with adex, nuggad, etc.
+    // This is ok as we are using our private prebid.js build.
 
     if (serverResponses.length > 0) {
       // We have a response so almost guaranteed we have cookie, etc.

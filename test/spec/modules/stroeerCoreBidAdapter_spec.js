@@ -493,26 +493,19 @@ describe('stroeerCore bid adapter', function () {
 
       describe('should use custom url if provided', () => {
         const samples = [{
-          protocol: 'http:',
           params: {sid: 'ODA=', host: 'other.com', port: '234', path: '/xyz'},
           expected: 'https://other.com:234/xyz'
         }, {
-          protocol: 'https:',
-          params: {sid: 'ODA=', host: 'other.com', port: '234', path: '/xyz'},
-          expected: 'https://other.com:234/xyz'
+          params: {protocol: 'http', sid: 'ODA=', host: 'other.com', port: '234', path: '/xyz'},
+          expected: 'http://other.com:234/xyz'
         }, {
-          protocol: 'https:',
-          params: {sid: 'ODA=', host: 'other.com', port: '234', securePort: '871', path: '/xyz'},
-          expected: 'https://other.com:871/xyz'
-        }, {
-          protocol: 'http:', params: {sid: 'ODA=', port: '234', path: '/xyz'}, expected: 'https://hb.adscale.de:234/xyz'
-        }, ];
+          params: {sid: 'ODA=', path: '/xyz'},
+          expected: 'https://hb.adscale.de/xyz'
+        }];
 
         samples.forEach(sample => {
           it(`should use ${sample.expected} as endpoint when given params ${JSON.stringify(sample.params)} and protocol ${sample.protocol}`,
             function () {
-              win.location.protocol = sample.protocol;
-
               const bidReq = buildBidderRequest();
               bidReq.bids[0].params = sample.params;
               bidReq.bids.length = 1;
