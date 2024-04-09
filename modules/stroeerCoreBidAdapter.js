@@ -228,6 +228,12 @@ export const spec = {
       utils.deepSetValue(commonPayload, DSA_KEY, dsa);
     }
 
+    const COOKIE_DEPRECATION_LABEL_KEY = 'ortb2.device.ext.cdep';
+    const cdep = utils.deepAccess(bidderRequest, COOKIE_DEPRECATION_LABEL_KEY);
+    if (cdep) {
+      utils.deepSetValue(commonPayload, COOKIE_DEPRECATION_LABEL_KEY, cdep);
+    }
+
     const serverRequestInfos = [];
     const endpointUrl = buildUrl(anyBid.params);
 
