@@ -1,8 +1,8 @@
-import {registerBidder} from '../src/adapters/bidderFactory.js'
-import {ajax} from '../src/ajax.js'
-import {BANNER, VIDEO} from '../src/mediaTypes.js'
+import { registerBidder } from '../src/adapters/bidderFactory.js'
+import { ajax } from '../src/ajax.js'
+import { BANNER, VIDEO } from '../src/mediaTypes.js'
 import * as utils from '../src/utils.js'
-import {getGlobal} from '../src/prebidGlobal.js'
+import { getGlobal } from '../src/prebidGlobal.js'
 
 const GVL_ID = 136;
 const BIDDER_CODE = 'stroeerCore';
@@ -74,8 +74,8 @@ function elementInView(elementId) {
   return undefined;
 }
 
-function buildUrl({host: hostname = DEFAULT_HOST, port = DEFAULT_PORT, path: pathname = DEFAULT_PATH, protocol = DEFAULT_PROTOCOL}) {
-  return utils.buildUrl({protocol, hostname, port, pathname});
+function buildUrl({ host: hostname = DEFAULT_HOST, port = DEFAULT_PORT, path: pathname = DEFAULT_PATH, protocol = DEFAULT_PROTOCOL }) {
+  return utils.buildUrl({ protocol, hostname, port, pathname });
 }
 
 function setupGlobalNamespace(anyBid) {
@@ -95,7 +95,7 @@ function initUserConnect() {
   const scriptElement = getMostAccessibleTopWindow().document.createElement('script');
 
   if (sid) {
-    scriptElement.setAttribute('data-container-config', JSON.stringify({slotId: sid}));
+    scriptElement.setAttribute('data-container-config', JSON.stringify({ slotId: sid }));
   }
 
   scriptElement.src = userConnectJsUrl;
@@ -125,7 +125,7 @@ function groupBy(array, keyFns) {
     if (!group) {
       const key = {};
       keys.forEach(name => key[name] = keyFns[name](utils.deepAccess(element, name)));
-      group = {key, values: []};
+      group = { key, values: [] };
       groups.push(group);
     }
     group.values.push(element);
@@ -134,7 +134,7 @@ function groupBy(array, keyFns) {
   return groups;
 }
 
-function getVersionValues (win) {
+function getVersionValues(win) {
   const pbjs = getGlobal();
   return {
     yl: win.YLHH?.bidder?.settings?.version,
@@ -144,7 +144,7 @@ function getVersionValues (win) {
 }
 
 function divideBidRequestsBySsat(bidRequests) {
-  return groupBy(bidRequests, {'params.ssat': value => value !== 1}).map(group => group.values);
+  return groupBy(bidRequests, { 'params.ssat': value => value !== 1 }).map(group => group.values);
 }
 
 export const spec = {
@@ -152,7 +152,7 @@ export const spec = {
   gvlid: GVL_ID,
   supportedMediaTypes: [BANNER, VIDEO],
 
-  isBidRequestValid: (function () {
+  isBidRequestValid: (function() {
     const validators = [];
 
     const createValidator = (checkFn, msg) => {
@@ -179,12 +179,12 @@ export const spec = {
     validators.push(createValidator((bidReq) => bidReq.params.ssat === undefined || [1, 2].indexOf(bidReq.params.ssat) > -1,
       'the ssat field is invalid (must be 1 or 2)'));
 
-    return function (bidRequest) {
+    return function(bidRequest) {
       return validators.every(f => f(bidRequest));
     }
   }()),
 
-  buildRequests: function (validBidRequests = [], bidderRequest) {
+  buildRequests: function(validBidRequests = [], bidderRequest) {
     const anyBid = bidderRequest.bids[0];
     const win = utils.getWindowSelf();
 
@@ -222,23 +222,19 @@ export const spec = {
       };
     }
 
-    const DSA_KEY = 'ortb2.regs.ext.dsa';
-    const dsa = utils.deepAccess(bidderRequest, DSA_KEY);
-    if (dsa) {
-      utils.deepSetValue(commonPayload, DSA_KEY, dsa);
-    }
-
-    const COOKIE_DEPRECATION_LABEL_KEY = 'ortb2.device.ext.cdep';
-    const cdep = utils.deepAccess(bidderRequest, COOKIE_DEPRECATION_LABEL_KEY);
-    if (cdep) {
-      utils.deepSetValue(commonPayload, COOKIE_DEPRECATION_LABEL_KEY, cdep);
-    }
+    const ORTB2_KEYS = ['regs.ext.dsa', 'device.ext.cdep'];
+    ORTB2_KEYS.forEach(key => {
+      const value = utils.deepAccess(bidderRequest.ortb2, key);
+      if (value !== undefined) {
+        utils.deepSetValue(commonPayload, `ortb2.${key}`, value);
+      }
+    });
 
     const serverRequestInfos = [];
     const endpointUrl = buildUrl(anyBid.params);
 
-    addServerRequestInfos(hasBanner, bidRequest => ({ban: createBannerObject(bidRequest)}));
-    addServerRequestInfos(hasVideo, bidRequest => ({vid: createVideoObject(bidRequest)}));
+    addServerRequestInfos(hasBanner, bidRequest => ({ ban: createBannerObject(bidRequest) }));
+    addServerRequestInfos(hasVideo, bidRequest => ({ vid: createVideoObject(bidRequest) }));
 
     return serverRequestInfos;
 
@@ -271,6 +267,7 @@ export const spec = {
           viz: elementInView(metaTagPosition),
           ctx: getContextFromSDG(metaTagPosition),
           kvl: getLocalKeyValues(metaTagPosition),
+          sfp: bidRequest.params.sfp
         };
 
         return Object.assign(bid, customAttrsFn(bidRequest));
@@ -284,7 +281,7 @@ export const spec = {
       try {
         // Browser may restrict access by throwing error
         result = localStorage[itemName];
-      } catch (ignore) {}
+      } catch (ignore) { }
       return result;
     }
 
@@ -321,7 +318,7 @@ export const spec = {
       };
     }
 
-    function createFloorPriceObject (mediaType, sizes, bidRequest) {
+    function createFloorPriceObject(mediaType, sizes, bidRequest) {
       if (!bidRequest.getFloor) {
         return undefined;
       }
@@ -338,7 +335,7 @@ export const spec = {
           mediaType: mediaType,
           size: [size[0], size[1]]
         });
-        return Object.assign({}, floor, {size: size})
+        return Object.assign({}, floor, { size: size })
       });
 
       const floorWithCurrency = [defaultFloor].concat(sizeFloors).find(floor => floor.currency);
@@ -406,7 +403,7 @@ export const spec = {
 
     function getValidKeyValues(allKeyValues) {
       const validKeys = Object.keys(allKeyValues).filter((key) => isValidValuesForKeyValue(allKeyValues[key]))
-      return validKeys.reduce((keyValues, key) => ({...keyValues, [key]: allKeyValues[key]}), {});
+      return validKeys.reduce((keyValues, key) => ({ ...keyValues, [key]: allKeyValues[key] }), {});
     }
 
     function isValidValuesForKeyValue(values) {
@@ -414,7 +411,7 @@ export const spec = {
     }
   },
 
-  interpretResponse: function (serverResponse) {
+  interpretResponse: function(serverResponse) {
     const bids = [];
 
     if (serverResponse.body && typeof serverResponse.body === 'object') {
@@ -451,7 +448,7 @@ export const spec = {
           nurl: bidResponse.nurl,
           originalAd: bidResponse.ad,
           tracking: bidResponse.tracking,
-          generateAd: function ({auctionPrice, firstBid, secondBid, thirdBid}) {
+          generateAd: function({ auctionPrice, firstBid, secondBid, thirdBid }) {
             let sspAuctionPrice = auctionPrice;
 
             if (this.exchangeRate && this.exchangeRate !== 1) {
@@ -493,7 +490,7 @@ export const spec = {
     return bids;
   },
 
-  getUserSyncs: function (syncOptions, serverResponses) {
+  getUserSyncs: function(syncOptions, serverResponses) {
     // WARNING: we are breaking rules by inserting sync elements ourselves instead of prebid.
     // This is ok as we are using our private prebid.js build.
 
@@ -547,7 +544,7 @@ function Crypter(encKey, intKey) {
   this.intKey = atob(intKey); // signature key
 }
 
-Crypter.prototype.encrypt = function (anyRandomString, data) {
+Crypter.prototype.encrypt = function(anyRandomString, data) {
   const CIPHERTEXT_SIZE = 8;
   const SIGNATURE_SIZE = 4;
   let paddedImpressionId = padEnd(anyRandomString, 16, '0').substring(0, 16);
