@@ -250,12 +250,11 @@ export const spec = {
 
     function createPayload(bidRequests, customAttrsFn) {
       const bidRequestWithSsat = bidRequests.find(bidRequest => bidRequest.params.ssat);
-      const bidRequestWithYl2 = bidRequests.find(bidRequest => bidRequest.params.yl2);
 
-      const payload = Object.assign({
+      const payload = {
         ssat: bidRequestWithSsat ? bidRequestWithSsat.params.ssat : undefined,
-        yl2: bidRequestWithYl2 ? bidRequestWithYl2.params.yl2 : (getFromLocalStorage('sdgYieldtest') === '1'),
-      }, commonPayload);
+        ...commonPayload
+      }
 
       payload.bids = bidRequests.map(bidRequest => {
         const metaTagPosition = win.YLHH?.bidder?.tag?.getMetaTagPositionBy(bidRequest.adUnitCode) ?? bidRequest.adUnitCode;
@@ -274,15 +273,6 @@ export const spec = {
       });
 
       return payload;
-    }
-
-    function getFromLocalStorage(itemName) {
-      let result;
-      try {
-        // Browser may restrict access by throwing error
-        result = localStorage[itemName];
-      } catch (ignore) { }
-      return result;
     }
 
     function getContextFromSDG(metaTagPosition) {

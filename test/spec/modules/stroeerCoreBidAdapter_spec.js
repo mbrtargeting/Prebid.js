@@ -558,7 +558,6 @@ describe('stroeerCore bid adapter', function() {
           'ref': 'https://www.example.com/?search=monkey',
           'mpa': true,
           'ssl': false,
-          'yl2': false,
           'url': 'https://www.example.com/monkey/index.html',
           'bids': [{
             'sid': 'NDA=',
@@ -943,30 +942,6 @@ describe('stroeerCore bid adapter', function() {
           bidReq.bids[0].params.ssat = 99;
           const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
           assert.equal(serverRequestInfo.data.ssat, 99);
-        });
-
-        it('yl2 defaults to false', () => {
-          const bidReq = buildBidderRequest();
-          bidReq.bids.length = 1;
-          const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
-          assert.equal(serverRequestInfo.data.yl2, false);
-        });
-
-        it('should use yl2 value from config', () => {
-          const bidReq = buildBidderRequest();
-          bidReq.bids.length = 1;
-          bidReq.bids[0].params.yl2 = true;
-          const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
-          assert.equal(serverRequestInfo.data.yl2, true);
-        });
-
-        it('should use yl2 value from localStorage', () => {
-          localStorage.sdgYieldtest = '1';
-          const bidReq = buildBidderRequest();
-          bidReq.bids.length = 1;
-          bidReq.bids[0].params.yl2 = false;
-          const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
-          assert.equal(serverRequestInfo.data.yl2, true);
         });
 
         it('should not have ssat by default', () => {
