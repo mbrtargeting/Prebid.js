@@ -222,7 +222,7 @@ export const spec = {
       };
     }
 
-    const ORTB2_KEYS = ['regs.ext.dsa', 'device.ext.cdep'];
+    const ORTB2_KEYS = ['regs.ext.dsa', 'device.ext.cdep', 'source.tid'];
     ORTB2_KEYS.forEach(key => {
       const value = utils.deepAccess(bidderRequest.ortb2, key);
       if (value !== undefined) {
@@ -266,7 +266,8 @@ export const spec = {
           viz: elementInView(metaTagPosition),
           ctx: getContextFromSDG(metaTagPosition),
           kvl: getLocalKeyValues(metaTagPosition),
-          sfp: bidRequest.params.sfp
+          sfp: bidRequest.params.sfp,
+          tid: bidRequest.transactionId,
         };
 
         return Object.assign(bid, customAttrsFn(bidRequest));

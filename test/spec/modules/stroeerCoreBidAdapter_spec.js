@@ -1182,6 +1182,22 @@ describe('stroeerCore bid adapter', function() {
           assert.deepNestedPropertyVal(bid, 'ban.fp.siz', [{ w: 160, h: 60, p: 2.7 }]);
         });
 
+        it('should add the bid transaction id', () => {
+          const bidReq = buildBidderRequest();
+          const uuid0 = "f9545c4c-7d3f-4941-9319-d515af162085";
+          const uuid1 = "8ce92d85-e9b0-4682-8025-bf58d452b2a7";
+
+          bidReq.bids[0].transactionId = uuid0;
+          bidReq.bids[1].transactionId = uuid1;
+
+          const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
+
+          const [bid0, bid1] = serverRequestInfo.data.bids;
+
+          assert.equal(bid0.tid, uuid0);
+          assert.equal(bid1.tid, uuid1);
+        });
+
         describe('ortb2 interface', () => {
           it('should add all user data if available', () => {
             const bidReq = buildBidderRequest();
@@ -1274,6 +1290,25 @@ describe('stroeerCore bid adapter', function() {
             const sentOrtb2 = serverRequestInfo.data.ortb2;
 
             assert.deepEqual(sentOrtb2, ortb2);
+          });
+
+          it('should add the source transaction id', () => {
+            const bidReq = buildBidderRequest();
+            const tid = "7c3c82b2-30bb-49dc-9e3b-0148cd769a28";
+
+            const ortb2 = {
+              source: {
+                tid
+              }
+            };
+
+            bidReq.ortb2 = utils.deepClone(ortb2);
+
+            const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
+
+            const sentOrtb2 = serverRequestInfo.data.ortb2;
+
+            assert.equal(sentOrtb2.source.tid, tid);
           });
         });
       });
