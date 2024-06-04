@@ -14,7 +14,6 @@ const DEFAULT_PROTOCOL = 'https';
 const _externalCrypter = new Crypter('c2xzRWh5NXhpZmxndTRxYWZjY2NqZGNhTW1uZGZya3Y=', 'eWRpdkFoa2tub3p5b2dscGttamIySGhkZ21jcmg0Znk=');
 const _internalCrypter = new Crypter('1AE180CBC19A8CFEB7E1FCC000A10F5D892A887A2D9=', '0379698055BD41FD05AC543A3AAAD6589BC6E1B3626=');
 
-const isSecureWindow = () => utils.getWindowSelf().location.protocol === 'https:';
 const isMainPageAccessible = () => getMostAccessibleTopWindow() === utils.getWindowTop();
 
 function getStroeerCore() {
@@ -195,7 +194,6 @@ export const spec = {
     const commonPayload = {
       id: utils.generateUUID(),
       ref: refererInfo.ref,
-      ssl: isSecureWindow(),
       mpa: isMainPageAccessible(),
       ver: getVersionValues(win),
       timeout: bidderRequest.timeout - (Date.now() - bidderRequest.auctionStart),

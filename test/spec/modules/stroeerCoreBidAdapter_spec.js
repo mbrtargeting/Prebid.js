@@ -217,13 +217,12 @@ describe('stroeerCore bid adapter', function() {
 
   const createWindow = (href, params = {}) => {
     let { parent, referrer, top, frameElement, placementElements = [] } = params;
-    const protocol = href.startsWith('https') ? 'https:' : 'http:';
     const win = {
       frameElement,
       parent,
       top,
       location: {
-        protocol, href
+        href
       },
       document: {
         createElement: function() {
@@ -239,13 +238,8 @@ describe('stroeerCore bid adapter', function() {
 
     win.self = win;
 
-    if (!parent) {
-      win.parent = win;
-    }
-
-    if (!top) {
-      win.top = win;
-    }
+    win.parent = parent ?? top ?? win;
+    win.top = top ?? parent ?? win;
 
     return win;
   };
@@ -263,7 +257,7 @@ describe('stroeerCore bid adapter', function() {
 
   function setupSingleWindow(sandBox, placementElements = [createElement('div-1', 17), createElement('div-2', 54)]) {
     const win = createWindow('http://www.xyz.com/', {
-      parent: win, top: win, frameElement: createElement(undefined, 304), placementElements: placementElements
+      frameElement: createElement(undefined, 304), placementElements: placementElements
     });
 
     win.innerHeight = 200;
@@ -521,13 +515,12 @@ describe('stroeerCore bid adapter', function() {
     });
 
     describe('payload on server request info object', () => {
-      let topWin;
       let win;
 
       let placementElements;
       beforeEach(() => {
         placementElements = [createElement('div-1', 17), createElement('div-2', 54)];
-        ({ topWin, win } = setupNestedWindows(sandbox, placementElements));
+        ({ win } = setupNestedWindows(sandbox, placementElements));
         win.YLHH = buildFakeYLHH({
           '137': 'div-1',
           '248': 'div-2'
@@ -557,7 +550,6 @@ describe('stroeerCore bid adapter', function() {
           'timeout': expectedTimeout,
           'ref': 'https://www.example.com/?search=monkey',
           'mpa': true,
-          'ssl': false,
           'url': 'https://www.example.com/monkey/index.html',
           'bids': [{
             'sid': 'NDA=',
@@ -1184,8 +1176,8 @@ describe('stroeerCore bid adapter', function() {
 
         it('should add the bid transaction id', () => {
           const bidReq = buildBidderRequest();
-          const uuid0 = "f9545c4c-7d3f-4941-9319-d515af162085";
-          const uuid1 = "8ce92d85-e9b0-4682-8025-bf58d452b2a7";
+          const uuid0 = 'f9545c4c-7d3f-4941-9319-d515af162085';
+          const uuid1 = '8ce92d85-e9b0-4682-8025-bf58d452b2a7';
 
           bidReq.bids[0].transactionId = uuid0;
           bidReq.bids[1].transactionId = uuid1;
@@ -1294,7 +1286,7 @@ describe('stroeerCore bid adapter', function() {
 
           it('should add the source transaction id', () => {
             const bidReq = buildBidderRequest();
-            const tid = "7c3c82b2-30bb-49dc-9e3b-0148cd769a28";
+            const tid = '7c3c82b2-30bb-49dc-9e3b-0148cd769a28';
 
             const ortb2 = {
               source: {
