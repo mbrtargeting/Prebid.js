@@ -205,6 +205,7 @@ export const spec = {
 
     const user = utils.cleanObj({
       euids: anyBid.userId,
+      eids: bidderRequest.userIdAsEids,
       data: utils.deepAccess(bidderRequest, 'ortb2.user.data')
     });
 

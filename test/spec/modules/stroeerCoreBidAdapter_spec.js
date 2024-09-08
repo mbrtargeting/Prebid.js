@@ -85,6 +85,22 @@ describe('stroeerCore bid adapter', function() {
     }
   });
 
+  // Pub Provided ids
+  const userIdAsEids = Object.freeze([
+    {
+      source: 'stroeer.de',
+      uids: [
+        {
+          id: 'db1747db-a0c6-42e7-9387-ace49d2f80b7',
+          atype: 1,
+          ext: {
+            stype: 'ppuid'
+          }
+        }
+      ]
+    }
+  ])
+
   const buildBidderRequest = () => ({
     bidderRequestId: 'bidder-request-id-123',
     bidderCode: 'stroeerCore',
@@ -94,6 +110,7 @@ describe('stroeerCore bid adapter', function() {
       page: 'https://www.example.com/monkey/index.html',
       ref: 'https://www.example.com/?search=monkey'
     },
+    userIdAsEids: userIdAsEids,
     bids: [{
       bidId: 'bid1',
       bidder: 'stroeerCore',
@@ -568,6 +585,7 @@ describe('stroeerCore bid adapter', function() {
           }],
           'ver': {},
           'user': {
+            'eids': userIdAsEids,
             'euids': userIds
           }
         };
@@ -1018,7 +1036,15 @@ describe('stroeerCore bid adapter', function() {
           bidReq.bids.forEach(bid => delete bid.userId);
           const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
           assert.lengthOf(serverRequestInfo.data.bids, 2);
-          assert.notProperty(serverRequestInfo, 'uids');
+          assert.notProperty(serverRequestInfo.data.user, 'euids');
+        });
+
+        it('should be able to build without userIdAsEids', () => {
+          const bidReq = buildBidderRequest();
+          bidReq.userIdAsEids = undefined
+          const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
+          assert.lengthOf(serverRequestInfo.data.bids, 2);
+          assert.notProperty(serverRequestInfo.data.user, 'eids');
         });
 
         it('should add schain if available', () => {
