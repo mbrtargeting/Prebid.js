@@ -3,6 +3,7 @@ import { ajax } from '../src/ajax.js'
 import { BANNER, VIDEO } from '../src/mediaTypes.js'
 import * as utils from '../src/utils.js'
 import { getGlobal } from '../src/prebidGlobal.js'
+import { config } from '../src/config.js'
 
 const GVL_ID = 136;
 const BIDDER_CODE = 'stroeerCore';
@@ -376,7 +377,7 @@ export const spec = {
 
     function getGlobalKeyValues() {
       try {
-        return getValidKeyValues(win.SDG.Publisher.getConfig().getFilteredKeyValues());
+        return win.SDG ? getValidKeyValues(win.SDG.Publisher.getConfig().getFilteredKeyValues()) : config.getConfig('kvg');
       } catch (e) {
         return undefined;
       }
