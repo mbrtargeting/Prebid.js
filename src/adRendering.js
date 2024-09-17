@@ -6,6 +6,7 @@ import {
   insertElement,
   logError,
   logWarn,
+  logInfo,
   replaceMacros
 } from './utils.js';
 import * as events from './events.js';
@@ -128,8 +129,18 @@ export const getRenderingData = hook('sync', function (bidResponse, options) {
     AUCTION_PRICE: originalCpm || cpm,
     CLICKTHROUGH: options?.clickUrl || ''
   }
+  // --- stroeer custom code start (for testing only) ---
+  let generatedAd = ad;
+  if (bidResponse.generateAd) {
+    logInfo('winning stroeer bid to be generated: ' + JSON.stringify(bidResponse, null, 2));
+    const winner = typeof window.stroeer_ad_config === 'object' ? window.stroeer_ad_config : {firstBid: '2.0', secondBid: '3.0', thirdBid: '4.0'};
+    winner.auctionPrice = bidResponse.maxprice || bidResponse.cpm;
+    generatedAd = bidResponse.generateAd(winner);
+  }
+
   return {
-    ad: replaceMacros(ad, repl),
+    ad: replaceMacros(generatedAd, repl),
+    // --- stroeer custom code end (for testing only) ---
     adUrl: replaceMacros(adUrl, repl),
     width,
     height
