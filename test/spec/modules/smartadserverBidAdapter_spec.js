@@ -458,6 +458,39 @@ describe('Smart bid adapter tests', function () {
     expect(syncs).to.have.lengthOf(0);
   });
 
+  it('should set browsingTopics=false in request.options', () => {
+    const requests = spec.buildRequests(DEFAULT_PARAMS_WO_OPTIONAL);
+    expect(requests[0]).to.have.property('options').and.to.deep.equal({
+      browsingTopics: false
+    });
+  });
+
+  it('Verify metadata', function () {
+    const adomain = ['advertiser-domain.com'];
+    const dsa = {
+      dsarequired: 1,
+      pubrender: 0,
+      datatopub: 1,
+      transparency: [{
+        domain: 'smartadserver.com',
+        dsaparams: [1, 2]
+      }]
+    };
+    const request = spec.buildRequests(DEFAULT_PARAMS);
+    const bids = spec.interpretResponse({
+      body: {
+        ...BID_RESPONSE.body,
+        adomain,
+        dsa,
+      }
+    }, request[0]);
+
+    expect(bids[0].cpm).to.equal(12);
+    expect(bids[0]).to.have.property('meta');
+    expect(bids[0].meta).to.have.property('advertiserDomains').and.to.deep.equal(adomain);
+    expect(bids[0].meta).to.have.property('dsa').and.to.deep.equal(dsa);
+  });
+
   describe('gdpr tests', function () {
     afterEach(function () {
       config.setConfig({ ortb2: undefined });
@@ -787,7 +820,7 @@ describe('Smart bid adapter tests', function () {
         const requestContent = JSON.parse(request[0].data);
         expect(requestContent).to.have.property('videoData');
         expect(requestContent.videoData).not.to.have.property('videoProtocol').eq(true);
-        expect(requestContent.videoData).to.have.property('adBreak').and.to.equal(2);
+        expect(requestContent.videoData).to.have.property('adBreak').and.to.equal(1);
       });
 
       it('Verify videoData params override meta values', function () {
@@ -1097,7 +1130,7 @@ describe('Smart bid adapter tests', function () {
       const requestContent = JSON.parse(request[0].data);
       expect(requestContent).to.have.property('videoData');
       expect(requestContent.videoData).not.to.have.property('videoProtocol').eq(true);
-      expect(requestContent.videoData).to.have.property('adBreak').and.to.equal(2);
+      expect(requestContent.videoData).to.have.property('adBreak').and.to.equal(1);
     });
 
     it('Verify videoData params override meta values', function () {
@@ -1142,6 +1175,50 @@ describe('Smart bid adapter tests', function () {
       expect(requestContent).to.have.property('videoData');
       expect(requestContent.videoData).to.have.property('videoProtocol').and.to.equal(6);
       expect(requestContent.videoData).to.have.property('adBreak').and.to.equal(3);
+    });
+
+    it('should handle value of videoMediaType.startdelay', function () {
+      const request = spec.buildRequests([{
+        bidder: 'smartadserver',
+        mediaTypes: {
+          video: {
+            context: 'outstream',
+            playerSize: [[640, 480]],
+            startdelay: -2
+          }
+        },
+        params: {
+          siteId: 123,
+          pageId: 456,
+          formatId: 78
+        }
+      }]);
+
+      const requestContent = JSON.parse(request[0].data);
+      expect(requestContent).to.have.property('videoData');
+      expect(requestContent.videoData).to.have.property('adBreak').and.to.equal(3);
+    });
+
+    it('should return specified value of videoMediaType.startdelay', function () {
+      const request = spec.buildRequests([{
+        bidder: 'smartadserver',
+        mediaTypes: {
+          video: {
+            context: 'outstream',
+            playerSize: [[640, 480]],
+            startdelay: 60
+          }
+        },
+        params: {
+          siteId: 123,
+          pageId: 456,
+          formatId: 78
+        }
+      }]);
+
+      const requestContent = JSON.parse(request[0].data);
+      expect(requestContent).to.have.property('videoData');
+      expect(requestContent.videoData).to.have.property('adBreak').and.to.equal(2);
     });
   });
 
@@ -1458,6 +1535,38 @@ describe('Smart bid adapter tests', function () {
       const requestContent = JSON.parse(request[0].data);
 
       expect(requestContent).to.have.property('gpid').and.to.equal(gpid);
+    });
+  });
+
+  describe('Digital Services Act (DSA)', function () {
+    it('should include dsa if ortb2.regs.ext.dsa available', function () {
+      const dsa = {
+        dsarequired: 1,
+        pubrender: 0,
+        datatopub: 1,
+        transparency: [
+          {
+            domain: 'ok.domain.com',
+            dsaparams: [1, 2]
+          },
+          {
+            domain: 'ko.domain.com',
+            dsaparams: [1, '3']
+          }
+        ]
+      };
+
+      const bidRequests = deepClone(DEFAULT_PARAMS_WO_OPTIONAL);
+      bidRequests[0].ortb2 = {
+        regs: {
+          ext: { dsa }
+        }
+      };
+
+      const request = spec.buildRequests(bidRequests);
+      const requestContent = JSON.parse(request[0].data);
+
+      expect(requestContent).to.have.property('dsa').and.to.deep.equal(dsa);
     });
   });
 
