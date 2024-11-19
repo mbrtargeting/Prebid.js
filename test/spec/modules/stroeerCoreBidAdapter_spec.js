@@ -1345,7 +1345,7 @@ describe('stroeerCore bid adapter', function() {
 
           bidReq.ortb2 = utils.deepClone(ortb2);
 
-          const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq);
+          const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
           const sentOrtb2 = serverRequestInfo.data.ortb2;
 
           assert.deepEqual(sentOrtb2, ortb2);
