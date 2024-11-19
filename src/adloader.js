@@ -20,6 +20,7 @@ const _approvedLoadExternalJSList = [
   'hadron',
   'medianet',
   'improvedigital',
+  'azerionedge',
   'aaxBlockmeter',
   'confiant',
   'arcspan',
@@ -32,8 +33,8 @@ const _approvedLoadExternalJSList = [
   'dynamicAdBoost',
   'contxtful',
   'id5',
-  'lucead',
-]
+  '51Degrees',
+];
 
 /**
  * Loads external javascript. Can only be used if external JS is approved by Prebid. See https://github.com/prebid/prebid-js-external-js-template#policy
