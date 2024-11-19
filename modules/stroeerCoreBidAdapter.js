@@ -221,7 +221,7 @@ export const spec = {
       };
     }
 
-    const ORTB2_KEYS = ['regs.ext.dsa', 'device.ext.cdep', 'source.tid'];
+    const ORTB2_KEYS = ['regs.ext.dsa', 'device.ext.cdep', 'source.tid', 'site.ext'];
     ORTB2_KEYS.forEach(key => {
       const value = utils.deepAccess(bidderRequest.ortb2, key);
       if (value !== undefined) {

@@ -1350,6 +1350,28 @@ describe('stroeerCore bid adapter', function() {
 
           assert.deepEqual(sentOrtb2, ortb2);
         });
+
+        it('should add the ortb2 site extension', () => {
+          const bidReq = buildBidderRequest();
+
+          const ortb2 = {
+            site: {
+              domain: 'example.com',
+              ext: {
+                data: {
+                  abc: '123'
+                }
+              }
+            }
+          };
+
+          bidReq.ortb2 = utils.deepClone(ortb2);
+
+          const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
+
+          const sentOrtb2 = serverRequestInfo.data.ortb2;
+          assert.deepEqual(sentOrtb2, {site: {ext: ortb2.site.ext}})
+        });
       });
 
       describe('Split bid requests', () => {
