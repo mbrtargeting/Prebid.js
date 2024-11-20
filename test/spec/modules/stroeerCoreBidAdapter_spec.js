@@ -5,6 +5,7 @@ import { BANNER, VIDEO } from '../../../src/mediaTypes.js';
 import * as prebidGlobal from '../../../src/prebidGlobal';
 import sinon from 'sinon';
 import * as ajax from 'src/ajax.js';
+import { config } from "../../../src/config";
 
 describe('stroeerCore bid adapter', function() {
   let sandbox;
@@ -765,6 +766,42 @@ describe('stroeerCore bid adapter', function() {
               }
             }
           }
+        });
+      });
+
+      describe('and when metatag is not available', () => {
+        const keyValues = { 'key0': 'value0', 'key1': 'value1' };
+        let getConfigStub;
+
+        beforeEach(() => {
+          assert.isUndefined(win.SDG);
+          getConfigStub = sinon.stub(config, 'getConfig');
+        });
+
+        afterEach(() => {
+          config.getConfig.restore();
+        });
+
+        it('should fallback to kvg config for global key values', () => {
+          getConfigStub.withArgs('kvg').returns(utils.deepClone(keyValues));
+
+          const bidReq = buildBidderRequest();
+
+          const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
+
+          assert.deepEqual(serverRequestInfo.data.kvg, keyValues);
+          assert.isTrue(config.getConfig.calledOnce);
+        });
+
+        it('should handle no kvg config', () => {
+          getConfigStub.withArgs('kvg').returns(undefined);
+
+          const bidReq = buildBidderRequest();
+
+          const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
+
+          assert.isUndefined(serverRequestInfo.data.kvg);
+          assert.isTrue(config.getConfig.calledOnce);
         });
       });
 
