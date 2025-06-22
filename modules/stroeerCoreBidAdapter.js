@@ -427,8 +427,8 @@ export const spec = {
           creativeId: '',
           mediaType,
           meta: {
-            advertiserDomains: bidResponse.adomain,
-            dsa: bidResponse.dsa
+            // contains advertiserDomains, dsa, campaignType, formatName, etc
+            ...bidResponse.meta
           },
 
           // Custom fields

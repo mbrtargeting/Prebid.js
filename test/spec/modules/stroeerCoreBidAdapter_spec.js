@@ -5,7 +5,7 @@ import { BANNER, VIDEO } from '../../../src/mediaTypes.js';
 import * as prebidGlobal from '../../../src/prebidGlobal';
 import sinon from 'sinon';
 import * as ajax from 'src/ajax.js';
-import { config } from "../../../src/config";
+import { config } from '../../../src/config';
 
 describe('stroeerCore bid adapter', function() {
   let sandbox;
@@ -1629,15 +1629,7 @@ describe('stroeerCore bid adapter', function() {
       assert.propertyVal(result[0], 'ropFactor', 1.2)
     });
 
-    it('should add advertiser domains to meta object', () => {
-      const response = buildBidderResponse();
-      response.bids[0] = Object.assign(response.bids[0], { adomain: ['website.org', 'domain.com'] });
-      const result = spec.interpretResponse({ body: response });
-      assert.deepPropertyVal(result[0].meta, 'advertiserDomains', ['website.org', 'domain.com']);
-      assert.propertyVal(result[1].meta, 'advertiserDomains', undefined);
-    });
-
-    it('should add dsa info to meta object', () => {
+    it('should set meta object', () => {
       const dsaResponse = {
         behalf: 'AdvertiserA',
         paid: 'AdvertiserB',
@@ -1645,16 +1637,28 @@ describe('stroeerCore bid adapter', function() {
           domain: 'dspexample.com',
           dsaparams: [1, 2],
         }],
-        adrender: 1
+        adrender: 1,
       };
 
       const response = buildBidderResponse();
-      response.bids[0] = Object.assign(response.bids[0], { dsa: utils.deepClone(dsaResponse) });
+      response.bids[0] = Object.assign(response.bids[0], {
+        meta: {
+          advertiserDomains: ['website.org', 'domain.com'],
+          dsa: utils.deepClone(dsaResponse),
+          campaignType: 'RTB',
+          another: 'thing',
+        },
+      });
 
-      const result = spec.interpretResponse({ body: response });
+      const result = spec.interpretResponse({body: response});
 
-      assert.deepPropertyVal(result[0].meta, 'dsa', dsaResponse);
-      assert.propertyVal(result[1].meta, 'dsa', undefined);
+      const firstBidMeta = result[0].meta;
+      assert.deepPropertyVal(firstBidMeta, 'advertiserDomains', ['website.org', 'domain.com']);
+      assert.deepPropertyVal(firstBidMeta, 'dsa', dsaResponse);
+      assert.propertyVal(firstBidMeta, 'campaignType', 'RTB');
+      assert.propertyVal(firstBidMeta, 'another', 'thing');
+
+      assert.isEmpty(result[1].meta)
     });
 
     describe('should add generateAd method on bid object', () => {
