@@ -86,21 +86,34 @@ describe('stroeerCore bid adapter', function() {
     }
   });
 
-  // Pub Provided ids
-  const userIdAsEids = Object.freeze([
+  // Vendor user ids and associated data (as Open Rtb EIDs)
+  const eids = Object.freeze([
     {
-      source: 'stroeer.de',
+      source: 'pubcid.org',
       uids: [
         {
-          id: 'db1747db-a0c6-42e7-9387-ace49d2f80b7',
           atype: 1,
+          id: '0dc6b760-0000-4716-9999-f92afdf2afb9',
+        },
+        {
+          atype: 3,
+          id: '8263836331',
+        }
+      ],
+    },
+    {
+      source: 'criteo.com',
+      uids: [
+        {
+          atype: 2,
+          id: 'WpgEVV9zekZDVmglMkJQQ09vN05JbWg',
           ext: {
-            stype: 'ppuid'
+            other: 'stuff'
           }
         }
-      ]
+      ],
     }
-  ])
+  ]);
 
   const buildBidderRequest = () => ({
     bidderRequestId: 'bidder-request-id-123',
@@ -111,7 +124,6 @@ describe('stroeerCore bid adapter', function() {
       page: 'https://www.example.com/monkey/index.html',
       ref: 'https://www.example.com/?search=monkey'
     },
-    userIdAsEids: userIdAsEids,
     bids: [{
       bidId: 'bid1',
       bidder: 'stroeerCore',
@@ -124,7 +136,7 @@ describe('stroeerCore bid adapter', function() {
       params: {
         sid: 'NDA='
       },
-      userId: userIds
+      userIdAsEids: eids,
     }, {
       bidId: 'bid2',
       bidder: 'stroeerCore',
@@ -137,7 +149,7 @@ describe('stroeerCore bid adapter', function() {
       params: {
         sid: 'ODA='
       },
-      userId: userIds
+      userIdAsEids: eids,
     }],
   });
 
@@ -586,8 +598,7 @@ describe('stroeerCore bid adapter', function() {
           }],
           'ver': {},
           'user': {
-            'eids': userIdAsEids,
-            'euids': userIds
+            'eids': eids,
           }
         };
 
@@ -1070,18 +1081,26 @@ describe('stroeerCore bid adapter', function() {
 
         it('should be able to build without third party user id data', () => {
           const bidReq = buildBidderRequest();
-          bidReq.bids.forEach(bid => delete bid.userId);
+
+          bidReq.bids.forEach(bid => {
+            delete bid.userId;
+            delete bid.userIdAsEids;
+          });
+
           const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
+
           assert.lengthOf(serverRequestInfo.data.bids, 2);
-          assert.notProperty(serverRequestInfo.data.user, 'euids');
+          assert.isUndefined(serverRequestInfo.data.user?.eids);
+          assert.isUndefined(serverRequestInfo.data.user?.userIds);
         });
 
-        it('should be able to build without userIdAsEids', () => {
+        it('should prefer euids over eids', () => {
           const bidReq = buildBidderRequest();
-          bidReq.userIdAsEids = undefined
+          bidReq.bids.forEach(bid => bid.userId = userIds);
           const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
           assert.lengthOf(serverRequestInfo.data.bids, 2);
           assert.notProperty(serverRequestInfo.data.user, 'eids');
+          assert.deepEqual(serverRequestInfo.data.user.euids, userIds);
         });
 
         it('should add schain if available', () => {
