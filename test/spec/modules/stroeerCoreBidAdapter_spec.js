@@ -581,6 +581,7 @@ describe('stroeerCore bid adapter', function() {
           'ref': 'https://www.example.com/?search=monkey',
           'mpa': true,
           'url': 'https://www.example.com/monkey/index.html',
+          'kvg': {},
           'bids': [{
             'sid': 'NDA=',
             'bid': 'bid1',
@@ -799,9 +800,8 @@ describe('stroeerCore bid adapter', function() {
       });
 
       describe('and when metatag is not available', () => {
-        const keyValues = { 'key0': 'value0', 'key1': 'value1' };
+        const keyValues = { 'key0': ['value0'], 'key1': ['value1'] };
         let getConfigStub;
-
         beforeEach(() => {
           assert.isUndefined(win.SDG);
           getConfigStub = sinon.stub(config, 'getConfig');
@@ -823,13 +823,13 @@ describe('stroeerCore bid adapter', function() {
         });
 
         it('should handle no kvg config', () => {
-          getConfigStub.withArgs('kvg').returns(undefined);
+          getConfigStub.withArgs('kvg').returns({});
 
           const bidReq = buildBidderRequest();
 
           const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
 
-          assert.isUndefined(serverRequestInfo.data.kvg);
+          assert.deepEqual(serverRequestInfo.data.kvg, {});
           assert.isTrue(config.getConfig.calledOnce);
         });
       });
