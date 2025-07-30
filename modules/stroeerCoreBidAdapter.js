@@ -378,11 +378,16 @@ export const spec = {
     }
 
     function getGlobalKeyValues() {
+      const kvgConfig = config.getConfig('kvg');
+      const configKeyValues = utils.isPlainObject(kvgConfig) ? getValidKeyValues(kvgConfig) : {};
+      let metaTagKeyValues = {};
+
       try {
-        return win.SDG ? getValidKeyValues(win.SDG.Publisher.getConfig().getFilteredKeyValues()) : config.getConfig('kvg');
-      } catch (e) {
-        return undefined;
+        metaTagKeyValues = getValidKeyValues(win.SDG.Publisher.getConfig().getFilteredKeyValues());
+      } catch (ignore) {
       }
+
+      return { ...metaTagKeyValues, ...configKeyValues };
     }
 
     function getLocalKeyValues(metaTagPosition) {
