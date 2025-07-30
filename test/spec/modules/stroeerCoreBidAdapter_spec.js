@@ -797,6 +797,32 @@ describe('stroeerCore bid adapter', function() {
             }
           }
         });
+
+        it('config key values should override identical metatag key values', () => {
+          win.SDG = buildFakeSDGForGlobalKeyValues({
+            source: ['metatag'],
+            metaTagKey: ['random'],
+          });
+
+          const configKeyValues = {
+            source: ['config'],
+          };
+
+          const getConfigStub = sinon.stub(config, 'getConfig');
+          getConfigStub.withArgs('kvg').returns(utils.deepClone(configKeyValues));
+
+          const bidReq = buildBidderRequest();
+          const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
+
+          const expectedResult = {
+            source: ['config'],
+            metaTagKey: ['random'],
+          };
+
+          assert.deepEqual(serverRequestInfo.data.kvg, expectedResult);
+
+          config.getConfig.restore();
+        });
       });
 
       describe('and when metatag is not available', () => {
