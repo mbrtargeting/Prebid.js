@@ -440,6 +440,7 @@ export const spec = {
           nurl: bidResponse.nurl,
           originalAd: bidResponse.ad,
           tracking: bidResponse.tracking,
+          rb: bidResponse.rb,
           generateAd: function({ auctionPrice, firstBid, secondBid, thirdBid }) {
             let sspAuctionPrice = auctionPrice;
 

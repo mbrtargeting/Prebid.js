@@ -1,11 +1,11 @@
-import { assert } from 'chai';
-import { spec } from 'modules/stroeerCoreBidAdapter.js';
+import {assert} from 'chai';
+import {spec} from 'modules/stroeerCoreBidAdapter.js';
 import * as utils from 'src/utils.js';
-import { BANNER, VIDEO } from '../../../src/mediaTypes.js';
+import {BANNER, VIDEO} from '../../../src/mediaTypes.js';
 import * as prebidGlobal from '../../../src/prebidGlobal';
 import sinon from 'sinon';
 import * as ajax from 'src/ajax.js';
-import { config } from '../../../src/config';
+import {config} from '../../../src/config';
 
 describe('stroeerCore bid adapter', function() {
   let sandbox;
@@ -1678,6 +1678,23 @@ describe('stroeerCore bid adapter', function() {
       assert.propertyVal(firstBidMeta, 'another', 'thing');
 
       assert.isEmpty(result[1].meta)
+    });
+
+    it('should set rendering behaviour object', () => {
+      const response = buildBidderResponse();
+      const rbResponse = {
+        aw: true,
+        dr: true,
+        rl: false
+      }
+
+      response.bids[0] = Object.assign(response.bids[0], {
+        rb: utils.deepClone(rbResponse),
+      });
+
+      const result = spec.interpretResponse({body: response});
+      assert.deepPropertyVal(result[0], 'rb', rbResponse);
+      assert.isUndefined(result[1].rb);
     });
 
     describe('should add generateAd method on bid object', () => {
