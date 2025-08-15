@@ -798,30 +798,41 @@ describe('stroeerCore bid adapter', function() {
           }
         });
 
-        it('config key values should override identical metatag key values', () => {
-          win.SDG = buildFakeSDGForGlobalKeyValues({
-            source: ['metatag'],
-            metaTagKey: ['random'],
+        describe('config handling', () => {
+          let getConfigStub;
+
+          beforeEach(() => {
+            getConfigStub = sinon.stub(config, 'getConfig');
           });
 
-          const configKeyValues = {
-            source: ['config'],
-          };
+          afterEach(() => {
+            config.getConfig.restore();
+          });
 
-          const getConfigStub = sinon.stub(config, 'getConfig');
-          getConfigStub.withArgs('kvg').returns(utils.deepClone(configKeyValues));
+          it('should merge key values with config key values taking precedence', () => {
+            win.SDG = buildFakeSDGForGlobalKeyValues({
+              source: ['metatag'],
+              metaTagKey: ['metatagValue'],
+            });
 
-          const bidReq = buildBidderRequest();
-          const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
+            const configKeyValues = {
+              source: ['config'],
+              configKey: ['configValue'],
+            };
 
-          const expectedResult = {
-            source: ['config'],
-            metaTagKey: ['random'],
-          };
+            getConfigStub.withArgs('kvg').returns(configKeyValues);
 
-          assert.deepEqual(serverRequestInfo.data.kvg, expectedResult);
+            const bidReq = buildBidderRequest();
+            const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
 
-          config.getConfig.restore();
+            const expectedResult = {
+              source: ['config'],
+              metaTagKey: ['metatagValue'],
+              configKey: ['configValue'],
+            };
+
+            assert.deepEqual(serverRequestInfo.data.kvg, expectedResult);
+          });
         });
       });
 
