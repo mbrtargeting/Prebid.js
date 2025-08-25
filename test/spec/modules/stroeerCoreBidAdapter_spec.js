@@ -860,6 +860,17 @@ describe('stroeerCore bid adapter', function() {
         });
 
         it('should handle no kvg config', () => {
+          getConfigStub.withArgs('kvg').returns(undefined);
+
+          const bidReq = buildBidderRequest();
+
+          const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
+
+          assert.deepEqual(serverRequestInfo.data.kvg, {});
+          assert.isTrue(config.getConfig.calledOnce);
+        });
+
+        it('should handle empty kvg config', () => {
           getConfigStub.withArgs('kvg').returns({});
 
           const bidReq = buildBidderRequest();
