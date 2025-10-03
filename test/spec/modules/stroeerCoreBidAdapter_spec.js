@@ -1432,6 +1432,25 @@ describe('stroeerCore bid adapter', function() {
 
             assert.equal(sentOrtb2.source.tid, tid);
           });
+
+          it('should add the device ifa', () => {
+            const bidReq = buildBidderRequest();
+            const ifa = '4799fe5a-f3f6-422d-9a18-6c95e1701ae1';
+
+            const ortb2 = {
+              device: {
+                ifa
+              }
+            };
+
+            bidReq.ortb2 = utils.deepClone(ortb2);
+
+            const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
+
+            const sentOrtb2 = serverRequestInfo.data.ortb2;
+
+            assert.equal(sentOrtb2.device.ifa, ifa);
+          });
         });
 
         it('should add the Cookie Deprecation Label', () => {
