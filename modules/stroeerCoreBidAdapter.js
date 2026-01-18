@@ -223,13 +223,8 @@ export const spec = {
       };
     }
 
-    const ORTB2_KEYS = ['regs.ext.dsa', 'device.ext.cdep', 'source.tid', 'site.ext', 'device.ifa'];
-    ORTB2_KEYS.forEach(key => {
-      const value = utils.deepAccess(bidderRequest.ortb2, key);
-      if (value !== undefined) {
-        utils.deepSetValue(commonPayload, `ortb2.${key}`, value);
-      }
-    });
+    const ORTB2_PATHS = ['regs.ext.dsa', 'device.ext.cdep', 'source.tid', 'site.ext', 'device.ifa'];
+    copyDeepPaths(commonPayload, bidderRequest.ortb2, ORTB2_PATHS, 'ortb2');
 
     const serverRequestInfos = [];
     const endpointUrl = buildUrl(anyBid.params);
@@ -270,6 +265,8 @@ export const spec = {
           sfp: bidRequest.params.sfp,
           tid: bidRequest.transactionId,
         };
+
+        copyDeepPaths(bid, bidRequest.ortb2Imp, ['ext.gpid'], 'ortb2Imp');
 
         return Object.assign(bid, customAttrsFn(bidRequest));
       });
@@ -405,6 +402,19 @@ export const spec = {
 
     function isValidValuesForKeyValue(values) {
       return Array.isArray(values) && values.every((v) => typeof v === 'string' || typeof v === 'number');
+    }
+
+    function copyDeepPaths(target, source, paths, targetPrefix = '') {
+      paths.forEach(path => {
+        const value = utils.deepAccess(source, path);
+        if (value !== undefined) {
+          const targetPath = targetPrefix
+            ? `${targetPrefix}.${path}`
+            : path;
+
+          utils.deepSetValue(target, targetPath, value);
+        }
+      });
     }
   },
 

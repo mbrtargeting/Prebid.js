@@ -1453,6 +1453,34 @@ describe('stroeerCore bid adapter', function() {
           });
         });
 
+        describe('ortb2Imp interface', () => {
+          it('should add the Global Placement IDs (GPID)', () => {
+            const bidReq = buildBidderRequest();
+
+            bidReq.bids[0].ortb2Imp = {
+              ext: {
+                gpid: '/8292/homepage-top',
+                do: 'not care about this'
+              }
+            };
+
+            bidReq.bids[1].ortb2Imp = {
+              random: {
+                number: 2329
+              },
+              ext: {
+                gpid: '/2231/bottom'
+              }
+            };
+
+            const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
+            const [bid1, bid2] = serverRequestInfo.data.bids;
+
+            assert.deepEqual(bid1.ortb2Imp, {ext: {gpid: '/8292/homepage-top'}});
+            assert.deepEqual(bid2.ortb2Imp, {ext: {gpid: '/2231/bottom'}});
+          });
+        });
+
         it('should add the Cookie Deprecation Label', () => {
           const bidReq = buildBidderRequest();
 
