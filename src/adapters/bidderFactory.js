@@ -5,18 +5,24 @@ import {createBid} from '../bidfactory.js';
 import {userSync} from '../userSync.js';
 import {nativeBidIsValid} from '../native.js';
 import {isValidVideoBid} from '../video.js';
-import { EVENTS, STATUS, REJECTION_REASON } from '../constants.js';
+import {EVENTS, REJECTION_REASON, STATUS, DEBUG_MODE} from '../constants.js';
 import * as events from '../events.js';
-import {includes} from '../polyfill.js';
+
 import {
   delayExecution,
   isArray,
   isPlainObject,
   logError,
-  logWarn, memoize,
+  logWarn,
+  memoize,
   parseQueryStringParameters,
-  parseSizesInput, pick,
-  uniques
+  parseSizesInput,
+  pick,
+  uniques,
+  isGzipCompressionSupported,
+  compressDataWithGZip,
+  getParameterByName,
+  debugTurnedOn
 } from '../utils.js';
 import {hook} from '../hook.js';
 import {auctionManager} from '../auctionManager.js';
@@ -308,7 +314,7 @@ export function newBidder(spec) {
           }
           adapterManager.callBidderError(spec.code, error, bidderRequest)
           events.emit(EVENTS.BIDDER_ERROR, { error, bidderRequest });
-          logError(`Server call for ${spec.code} failed: ${errorMessage} ${error.status}. Continuing without bids.`);
+          logError(`Server call for ${spec.code} failed: ${errorMessage} ${error.status}. Continuing without bids.`, {bidRequests: validBidRequests});
         },
         onBid: (bid) => {
           const bidRequest = bidRequestMap[bid.requestId];
@@ -380,7 +386,7 @@ const RESPONSE_PROPS = ['bids', 'paapi']
  * @param onBid {function({})} invoked once for each bid in the response - with the bid as returned by interpretResponse
  * @param onCompletion {function()} invoked once when all bid requests have been processed
  */
-export const processBidderRequests = hook('sync', function (spec, bids, bidderRequest, ajax, wrapCallback, {onRequest, onResponse, onPaapi, onError, onBid, onCompletion}) {
+export const processBidderRequests = hook('async', function (spec, bids, bidderRequest, ajax, wrapCallback, {onRequest, onResponse, onPaapi, onError, onBid, onCompletion}) {
   const metrics = adapterMetrics(bidderRequest);
   onCompletion = metrics.startTiming('total').stopBefore(onCompletion);
   const tidGuard = guardTids(bidderRequest);
@@ -467,14 +473,20 @@ export const processBidderRequests = hook('sync', function (spec, bids, bidderRe
 
     const networkDone = requestMetrics.startTiming('net');
 
+    const debugMode = getParameterByName(DEBUG_MODE).toUpperCase() === 'TRUE' || debugTurnedOn();
+
     function getOptions(defaults) {
       const ro = request.options;
       return Object.assign(defaults, ro, {
         browsingTopics: ro?.hasOwnProperty('browsingTopics') && !ro.browsingTopics
           ? false
-          : (bidderSettings.get(spec.code, 'topicsHeader') ?? true) && isActivityAllowed(ACTIVITY_TRANSMIT_UFPD, activityParams(MODULE_TYPE_BIDDER, spec.code))
+          : (bidderSettings.get(spec.code, 'topicsHeader') ?? true) && isActivityAllowed(ACTIVITY_TRANSMIT_UFPD, activityParams(MODULE_TYPE_BIDDER, spec.code)),
+        suppressTopicsEnrollmentWarning: ro?.hasOwnProperty('suppressTopicsEnrollmentWarning')
+          ? ro.suppressTopicsEnrollmentWarning
+          : !debugMode
       })
     }
+
     switch (request.method) {
       case 'GET':
         ajax(
@@ -491,19 +503,38 @@ export const processBidderRequests = hook('sync', function (spec, bids, bidderRe
         );
         break;
       case 'POST':
-        ajax(
-          request.url,
-          {
-            success: onSuccess,
-            error: onFailure
-          },
-          typeof request.data === 'string' ? request.data : JSON.stringify(request.data),
-          getOptions({
-            method: 'POST',
-            contentType: 'text/plain',
-            withCredentials: true
-          })
-        );
+        const enableGZipCompression = request.options?.endpointCompression;
+        const callAjax = ({ url, payload }) => {
+          ajax(
+            url,
+            {
+              success: onSuccess,
+              error: onFailure
+            },
+            payload,
+            getOptions({
+              method: 'POST',
+              contentType: 'text/plain',
+              withCredentials: true
+            })
+          );
+        };
+
+        if (enableGZipCompression && debugMode) {
+          logWarn(`Skipping GZIP compression for ${spec.code} as debug mode is enabled`);
+        }
+
+        if (enableGZipCompression && !debugMode && isGzipCompressionSupported()) {
+          compressDataWithGZip(request.data).then(compressedPayload => {
+            const url = new URL(request.url, window.location.origin);
+            if (!url.searchParams.has('gzip')) {
+              url.searchParams.set('gzip', '1');
+            }
+            callAjax({ url: url.href, payload: compressedPayload });
+          });
+        } else {
+          callAjax({ url: request.url, payload: typeof request.data === 'string' ? request.data : JSON.stringify(request.data) });
+        }
         break;
       default:
         logWarn(`Skipping invalid request from ${spec.code}. Request type ${request.type} must be GET or POST`);
@@ -523,10 +554,9 @@ export const processBidderRequests = hook('sync', function (spec, bids, bidderRe
 export const registerSyncInner = hook('async', function(spec, responses, gdprConsent, uspConsent, gppConsent) {
   const aliasSyncEnabled = config.getConfig('userSync.aliasSyncEnabled');
   if (spec.getUserSyncs && (aliasSyncEnabled || !adapterManager.aliasRegistry[spec.code])) {
-    let filterConfig = config.getConfig('userSync.filterSettings');
     let syncs = spec.getUserSyncs({
-      iframeEnabled: !!(filterConfig && (filterConfig.iframe || filterConfig.all)),
-      pixelEnabled: !!(filterConfig && (filterConfig.image || filterConfig.all)),
+      iframeEnabled: userSync.canBidderRegisterSync('iframe', spec.code),
+      pixelEnabled: userSync.canBidderRegisterSync('image', spec.code),
     }, responses, gdprConsent, uspConsent, gppConsent);
     if (syncs) {
       if (!Array.isArray(syncs)) {
@@ -548,6 +578,12 @@ function validBidSize(adUnitCode, bid, {index = auctionManager.index} = {}) {
   if ((bid.width || parseInt(bid.width, 10) === 0) && (bid.height || parseInt(bid.height, 10) === 0)) {
     bid.width = parseInt(bid.width, 10);
     bid.height = parseInt(bid.height, 10);
+    return true;
+  }
+
+  if (bid.wratio != null && bid.hratio != null) {
+    bid.wratio = parseInt(bid.wratio, 10);
+    bid.hratio = parseInt(bid.hratio, 10);
     return true;
   }
 
@@ -573,7 +609,7 @@ function validBidSize(adUnitCode, bid, {index = auctionManager.index} = {}) {
 export function isValid(adUnitCode, bid, {index = auctionManager.index} = {}) {
   function hasValidKeys() {
     let bidKeys = Object.keys(bid);
-    return COMMON_BID_RESPONSE_KEYS.every(key => includes(bidKeys, key) && !includes([undefined, null], bid[key]));
+    return COMMON_BID_RESPONSE_KEYS.every(key => bidKeys.includes(key) && ![undefined, null].includes(bid[key]));
   }
 
   function errorMessage(msg) {

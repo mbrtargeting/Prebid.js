@@ -1,13 +1,12 @@
 import {
   createIframe,
   createInvisibleIframe,
-  deepAccess,
   inIframe,
   insertElement,
   logError,
   logInfo,
   logWarn,
-  replaceMacros
+  replaceMacros, triggerPixel
 } from './utils.js';
 import * as events from './events.js';
 import {AD_RENDER_FAILED_REASON, BID_STATUS, EVENTS, MESSAGES, PB_LOCATOR} from './constants.js';
@@ -18,20 +17,24 @@ import {auctionManager} from './auctionManager.js';
 import {getCreativeRenderer} from './creativeRenderers.js';
 import {hook} from './hook.js';
 import {fireNativeTrackers} from './native.js';
-import {GreedyPromise} from './utils/promise.js';
+import {PbPromise} from './utils/promise.js';
 import adapterManager from './adapterManager.js';
 import {useMetrics} from './utils/perfMetrics.js';
+import {filters} from './targeting.js';
+import {EVENT_TYPE_WIN, parseEventTrackers, TRACKER_METHOD_IMG} from './eventTrackers.js';
 
-const { AD_RENDER_FAILED, AD_RENDER_SUCCEEDED, STALE_RENDER, BID_WON } = EVENTS;
+const { AD_RENDER_FAILED, AD_RENDER_SUCCEEDED, STALE_RENDER, BID_WON, EXPIRED_RENDER } = EVENTS;
 const { EXCEPTION } = AD_RENDER_FAILED_REASON;
 
-export const getBidToRender = hook('sync', function (adId, forRender = true, override = GreedyPromise.resolve()) {
+export const getBidToRender = hook('sync', function (adId, forRender = true, override = PbPromise.resolve()) {
   return override
     .then(bid => bid ?? auctionManager.findBidByAdId(adId))
     .catch(() => {})
 })
 
 export const markWinningBid = hook('sync', function (bid) {
+  (parseEventTrackers(bid.eventtrackers)[EVENT_TYPE_WIN]?.[TRACKER_METHOD_IMG] || [])
+    .forEach(url => triggerPixel(url));
   events.emit(BID_WON, bid);
   auctionManager.addWinningBid(bid);
 })
@@ -125,16 +128,16 @@ function creativeMessageHandler(deps) {
 }
 
 export const getRenderingData = hook('sync', function (bidResponse, options) {
-  let {ad, adUrl, cpm, originalCpm, width, height} = bidResponse
+  let {ad, adUrl, cpm, originalCpm, width, height, instl} = bidResponse
 
-  // -- START: stroeer custom code for tesing only
+  // -- START: stroeer custom code for testing only
   if (bidResponse.generateAd) {
     logInfo('winning stroeer bid to be generated: ' + JSON.stringify(bidResponse, null, 2));
     const winner = typeof window.stroeer_ad_config === 'object' ? window.stroeer_ad_config : {firstBid: '2.0', secondBid: '3.0', thirdBid: '4.0'};
     winner.auctionPrice = bidResponse.maxprice || bidResponse.cpm;
     ad = bidResponse.generateAd(winner);
   }
-  // -- END: stroeer custom code for tesing only
+  // -- END: stroeer custom code for testing only
 
   const repl = {
     AUCTION_PRICE: originalCpm || cpm,
@@ -144,7 +147,8 @@ export const getRenderingData = hook('sync', function (bidResponse, options) {
     ad: replaceMacros(ad, repl),
     adUrl: replaceMacros(adUrl, repl),
     width,
-    height
+    height,
+    instl
   };
 })
 
@@ -192,10 +196,18 @@ export function handleRender({renderFn, resizeFn, adId, options, bidResponse, do
     if (bidResponse.status === BID_STATUS.RENDERED) {
       logWarn(`Ad id ${adId} has been rendered before`);
       events.emit(STALE_RENDER, bidResponse);
-      if (deepAccess(config.getConfig('auctionOptions'), 'suppressStaleRender')) {
+      if (config.getConfig('auctionOptions')?.suppressStaleRender) {
         return;
       }
     }
+    if (!filters.isBidNotExpired(bidResponse)) {
+      logWarn(`Ad id ${adId} has been expired`);
+      events.emit(EXPIRED_RENDER, bidResponse);
+      if (config.getConfig('auctionOptions')?.suppressExpiredRender) {
+        return;
+      }
+    }
+
     try {
       doRender({renderFn, resizeFn, bidResponse, options, doc});
     } catch (e) {
@@ -256,9 +268,16 @@ export function renderAdDirect(doc, adId, options) {
     emitAdRenderFail(Object.assign({id: adId, bid}, {reason, message}));
   }
   function resizeFn(width, height) {
-    if (doc.defaultView && doc.defaultView.frameElement) {
-      width && (doc.defaultView.frameElement.width = width);
-      height && (doc.defaultView.frameElement.height = height);
+    const frame = doc.defaultView?.frameElement;
+    if (frame) {
+      if (width) {
+        frame.width = width;
+        frame.style.width && (frame.style.width = `${width}px`);
+      }
+      if (height) {
+        frame.height = height;
+        frame.style.height && (frame.style.height = `${height}px`);
+      }
     }
   }
   const messageHandler = creativeMessageHandler({resizeFn});
@@ -266,7 +285,7 @@ export function renderAdDirect(doc, adId, options) {
     if (adData.ad) {
       doc.write(adData.ad);
       doc.close();
-      emitAdRenderSucceeded({doc, bid, adId: bid.adId});
+      emitAdRenderSucceeded({doc, bid, id: bid.adId});
     } else {
       getCreativeRenderer(bid)
         .then(render => render(adData, {
@@ -274,7 +293,7 @@ export function renderAdDirect(doc, adId, options) {
           mkFrame: createIframe,
         }, doc.defaultView))
         .then(
-          () => emitAdRenderSucceeded({doc, bid, adId: bid.adId}),
+          () => emitAdRenderSucceeded({doc, bid, id: bid.adId}),
           (e) => {
             fail(e?.reason || AD_RENDER_FAILED_REASON.EXCEPTION, e?.message)
             e?.stack && logError(e);

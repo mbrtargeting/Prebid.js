@@ -1,5 +1,4 @@
 import { CLIENT_SECTIONS } from '../../src/fpd/oneClient.js';
-import {find} from '../../src/polyfill.js';
 import {compareCodeAndSlot, deepAccess, isGptPubadsDefined, uniques} from '../../src/utils.js';
 
 /**
@@ -12,13 +11,25 @@ export function isSlotMatchingAdUnitCode(adUnitCode) {
 }
 
 /**
+ * @summary Export a k-v pair to GAM
+ */
+export function setKeyValue(key, value) {
+  if (!key || typeof key !== 'string') return false;
+  window.googletag = window.googletag || {cmd: []};
+  window.googletag.cmd = window.googletag.cmd || [];
+  window.googletag.cmd.push(() => {
+    window.googletag.pubads().setTargeting(key, value);
+  });
+}
+
+/**
  * @summary Uses the adUnit's code in order to find a matching gpt slot object on the page
  */
 export function getGptSlotForAdUnitCode(adUnitCode) {
   let matchingSlot;
   if (isGptPubadsDefined()) {
     // find the first matching gpt slot on the page
-    matchingSlot = find(window.googletag.pubads().getSlots(), isSlotMatchingAdUnitCode(adUnitCode));
+    matchingSlot = window.googletag.pubads().getSlots().find(isSlotMatchingAdUnitCode(adUnitCode));
   }
   return matchingSlot;
 }

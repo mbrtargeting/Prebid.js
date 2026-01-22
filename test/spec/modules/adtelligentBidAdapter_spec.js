@@ -17,6 +17,7 @@ const aliasEP = {
   'ocm': 'https://ghb.cenarius.orangeclickmedia.com/v2/auction/',
   '9dotsmedia': 'https://ghb.platform.audiodots.com/v2/auction/',
   'indicue': 'https://ghb.console.indicue.com/v2/auction/',
+  'stellormedia': 'https://ghb.ads.stellormedia.com/v2/auction/',
 };
 
 const DEFAULT_ADATPER_REQ = { bidderCode: 'adtelligent' };
@@ -143,6 +144,12 @@ const displayBidderRequest = {
   bids: [{ bidId: '2e41f65424c87c' }]
 };
 
+const ageVerificationData = {
+  id: "123456789123456789",
+  status: "accepted",
+  decisionDate: "2011-10-05T14:48:00.000Z"
+};
+
 const displayBidderRequestWithConsents = {
   bidderCode: 'bidderCode',
   bids: [{ bidId: '2e41f65424c87c' }],
@@ -154,7 +161,14 @@ const displayBidderRequestWithConsents = {
     gppString: 'abc12345234',
     applicableSections: [7, 8]
   },
-  uspConsent: 'iHaveIt'
+  uspConsent: 'iHaveIt',
+  ortb2: {
+    regs: {
+      ext: {
+        age_verification: ageVerificationData
+      }
+    }
+  }
 };
 
 const videoEqResponse = [{
@@ -349,7 +363,7 @@ describe('adtelligentBidAdapter', () => {
     });
 
     describe('publisher environment', () => {
-      const sandbox = sinon.sandbox.create();
+      const sandbox = sinon.createSandbox();
       sandbox.stub(config, 'getConfig').callsFake((key) => {
         const config = {
           'coppa': true
@@ -378,6 +392,9 @@ describe('adtelligentBidAdapter', () => {
       it('sets UserId\'s', () => {
         expect(bidRequestWithPubSettingsData.UserIds).to.be.deep.equal(DISPLAY_REQUEST.userId);
       })
+      it('sets AgeVerification', () => {
+        expect(bidRequestWithPubSettingsData.AgeVerification).to.deep.equal(ageVerificationData);
+      });
     })
   });
 
