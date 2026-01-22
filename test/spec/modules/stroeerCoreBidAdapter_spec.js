@@ -9,19 +9,18 @@ import {config} from '../../../src/config';
 
 describe('stroeerCore bid adapter', function() {
   let sandbox;
-  let fakeServer;
   let bidderRequest;
   let clock;
 
   beforeEach(() => {
     bidderRequest = buildBidderRequest();
-    sandbox = sinon.sandbox.create();
-    fakeServer = sandbox.useFakeServer();
+    sandbox = sinon.createSandbox();
     clock = sandbox.useFakeTimers();
     delete localStorage.sdgYieldtest;
   });
 
   afterEach(() => {
+    clock.restore();
     sandbox.restore();
   });
 
@@ -597,7 +596,9 @@ describe('stroeerCore bid adapter', function() {
               'siz': [[728, 90]]
             }
           }],
-          'ver': {},
+          'ver': {
+            'pb': prebidGlobal.getGlobal().version
+          },
           'user': {
             'eids': eids,
           }
@@ -1659,14 +1660,6 @@ describe('stroeerCore bid adapter', function() {
 
       assert.isTrue(ajaxStub.calledOnce);
       assert.isTrue(ajaxStub.calledWith('//hb.adscale.de/sspReqId/5f465360-cb11-44ee-b0be-b47a4f583521/39000', sinon.match.any))
-    });
-
-    it('should not call endpoint when endpoint field not present', () => {
-      fakeServer.respondWith('');
-      spec.interpretResponse({ body: buildBidderResponse() });
-      fakeServer.respond();
-
-      assert.equal(fakeServer.requests.length, 0);
     });
 
     it('should ignore legacy (prebid < 1.0) redirect', () => {

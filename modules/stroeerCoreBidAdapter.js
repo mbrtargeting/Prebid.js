@@ -4,6 +4,7 @@ import { BANNER, VIDEO } from '../src/mediaTypes.js'
 import * as utils from '../src/utils.js'
 import { getGlobal } from '../src/prebidGlobal.js'
 import { config } from '../src/config.js'
+import { getBoundingClientRect } from '../libraries/boundingClientRect/boundingClientRect.js';
 
 const GVL_ID = 136;
 const BIDDER_CODE = 'stroeerCore';
@@ -56,7 +57,7 @@ function elementInView(elementId) {
   };
 
   const visibleInWindow = (el, win) => {
-    const rect = el.getBoundingClientRect();
+    const rect = getBoundingClientRect(el);
     const inView = (rect.top + rect.height >= 0) && (rect.top <= win.innerHeight);
 
     if (win !== win.parent) {
