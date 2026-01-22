@@ -545,9 +545,12 @@ describe('stroeerCore bid adapter', function() {
 
     describe('payload on server request info object', () => {
       let win;
+      let pbVerStub;
 
       let placementElements;
       beforeEach(() => {
+        pbVerStub = sinon.stub(prebidGlobal, 'getGlobal');
+        pbVerStub.returns({ version: '1.1.1' });
         placementElements = [createElement('div-1', 17), createElement('div-2', 54)];
         ({ win } = setupNestedWindows(sandbox, placementElements));
         win.YLHH = buildFakeYLHH({
@@ -557,6 +560,7 @@ describe('stroeerCore bid adapter', function() {
       });
 
       afterEach(() => {
+        pbVerStub.restore();
         sandbox.restore();
       });
 
@@ -597,7 +601,7 @@ describe('stroeerCore bid adapter', function() {
             }
           }],
           'ver': {
-            'pb': prebidGlobal.getGlobal().version
+            'pb': '1.1.1'
           },
           'user': {
             'eids': eids,
@@ -943,16 +947,10 @@ describe('stroeerCore bid adapter', function() {
 
       describe('optional fields', () => {
         describe('version fields', () => {
-          let pbVerStub
-          let mtVersion
+          let mtVersion;
 
           beforeEach(() => {
-            pbVerStub = sinon.stub(prebidGlobal, 'getGlobal')
             win.SDG = { get version() { return mtVersion; } };
-          });
-
-          afterEach(() => {
-            pbVerStub.restore()
           });
 
           it('gets version variables', () => {
