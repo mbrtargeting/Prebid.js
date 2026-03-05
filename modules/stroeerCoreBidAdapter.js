@@ -49,8 +49,8 @@ function elementInView(elementId) {
   const resolveElement = (elId) => {
     let slotInfo;
     let win = utils.getWindowSelf();
-    if (win.SDG && (slotInfo = win.SDG.getCN().getSlotByPosition(elId)) !== null) {
-      return slotInfo.getContainer();
+    if (win.SDG && (slotInfo = win.SDG.Wrapper.getSlotByName(elId)) !== null) {
+      return slotInfo.containerNode;
     } else {
       return win.document.getElementById(elId);
     }
@@ -353,7 +353,7 @@ export const spec = {
 
     function getPageType(position) {
       try {
-        return win.SDG.getCN().getSlotByPosition(position).getPageType()
+        return win.SDG.Wrapper.getSlotByName(position).getPageType();
       } catch (e) {
         return undefined;
       }
@@ -361,7 +361,7 @@ export const spec = {
 
     function getZone(position) {
       try {
-        return win.SDG.getCN().getSlotByPosition(position).getZone()
+        return win.SDG.Wrapper.getSlotByName(position).getZone();
       } catch (e) {
         return undefined;
       }
@@ -369,7 +369,7 @@ export const spec = {
 
     function getAdUnits(position) {
       try {
-        return win.SDG.getCN().getSlotByPosition(position).getAdUnits()
+        return win.SDG.Wrapper.getSlotByName(position).getAdUnits();
       } catch (e) {
         return undefined;
       }
@@ -381,7 +381,7 @@ export const spec = {
       let metaTagKeyValues = {};
 
       try {
-        metaTagKeyValues = getValidKeyValues(win.SDG.Publisher.getConfig().getFilteredKeyValues());
+        metaTagKeyValues = getValidKeyValues(win.SDG.Wrapper.getFilteredKeyValues());
       } catch (ignore) {
       }
 
@@ -390,7 +390,7 @@ export const spec = {
 
     function getLocalKeyValues(metaTagPosition) {
       try {
-        return getValidKeyValues(win.SDG.getCN().getSlotByPosition(metaTagPosition).getFilteredKeyValues());
+        return getValidKeyValues(win.SDG.Wrapper.getSlotByName(metaTagPosition).getFilteredKeyValues());
       } catch (e) {
         return undefined;
       }

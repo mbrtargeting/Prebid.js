@@ -319,17 +319,22 @@ describe('stroeerCore bid adapter', function() {
   describe('slot location uses SDG API if available', () => {
     let queriedUnitCodes = [];
     beforeEach(() => {
-      const visibleElements = [createElement('div-1', 17), createElement('div-2', 54)];
-      const invisibleElement = createElement('invisible-div-1', -10);
-      const win = setupSingleWindow(sandbox, visibleElements);
+      const visibleElement = createElement('div-1', 17);
+      const invisibleElement = createElement('invisible-div', 250);
+      const allElements = [createElement('div-2', 54), visibleElement, visibleElement];
+      const win = setupSingleWindow(sandbox, allElements);
       win.SDG = {
-        getCN: function() {
-          return {
-            getSlotByPosition: function(elementId) {
-              queriedUnitCodes.push(elementId);
-              return {
-                getContainer: () => invisibleElement
-              }
+        Wrapper: {
+          getSlotByName: function(slotName) {
+            queriedUnitCodes.push(slotName);
+            let element;
+            if (slotName === 'div-1-alpha') {
+              element = visibleElement;
+            } else if (slotName === 'div-2-alpha') {
+              element = invisibleElement;
+            }
+            return {
+              containerNode: element
             }
           }
         }
@@ -347,9 +352,11 @@ describe('stroeerCore bid adapter', function() {
 
       const requests = spec.buildRequests(bidderRequest.bids, bidderRequest)[0];
 
-      requests.data.bids.forEach((bid) => {
-        assert.isFalse(bid.viz);
-      });
+      const bidForVisibleElement = requests.data.bids[0];
+      const bidForInvisibleElement = requests.data.bids[1];
+
+      assert.isTrue(bidForVisibleElement.viz);
+      assert.isFalse(bidForInvisibleElement.viz);
 
       assert.deepInclude(queriedUnitCodes, 'div-1-alpha');
       assert.deepInclude(queriedUnitCodes, 'div-2-alpha');
@@ -660,13 +667,9 @@ describe('stroeerCore bid adapter', function() {
 
         function buildFakeSDGForGlobalKeyValues(keyValues) {
           return {
-            Publisher: {
-              getConfig: function() {
-                return {
-                  getFilteredKeyValues: function() {
-                    return keyValues;
-                  }
-                }
+            Wrapper: {
+              getFilteredKeyValues: function () {
+                return keyValues;
               }
             }
           }
@@ -731,14 +734,12 @@ describe('stroeerCore bid adapter', function() {
 
         function buildFakeSDGForLocalKeyValues(localTargeting) {
           return {
-            getCN: function() {
-              return {
-                getSlotByPosition: function(position) {
-                  return {
-                    getFilteredKeyValues: () => localTargeting[position]
-                  };
-                }
-              };
+            Wrapper: {
+              getSlotByName: function (slotName) {
+                return {
+                  getFilteredKeyValues: () => localTargeting[slotName]
+                };
+              }
             }
           }
         }
@@ -782,22 +783,20 @@ describe('stroeerCore bid adapter', function() {
 
           function buildFakeSDGContext(config) {
             return {
-              getCN: function() {
-                return {
-                  getSlotByPosition: function(position) {
-                    return {
-                      getAdUnits: function() {
-                        return config[position].adUnits;
-                      },
-                      getZone: function() {
-                        return config[position].zone;
-                      },
-                      getPageType: function() {
-                        return config[position].pageType;
-                      },
-                    };
-                  }
-                };
+              Wrapper: {
+                getSlotByName: function (slotName) {
+                  return {
+                    getAdUnits: function () {
+                      return config[slotName].adUnits;
+                    },
+                    getZone: function () {
+                      return config[slotName].zone;
+                    },
+                    getPageType: function () {
+                      return config[slotName].pageType;
+                    },
+                  };
+                }
               }
             }
           }
