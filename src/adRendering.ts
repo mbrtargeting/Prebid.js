@@ -206,11 +206,11 @@ export const getRenderingData = hook('sync', function (bidResponse: Bid, options
   let { ad, adUrl, cpm, originalCpm, width, height, instl } = bidResponse
 
   // -- START: stroeer custom code for testing only
-  if (bidResponse.generateAd) {
+  if (bidResponse['generateAd']) {
     logInfo('winning stroeer bid to be generated: ' + JSON.stringify(bidResponse, null, 2));
-    const winner = typeof window.stroeer_ad_config === 'object' ? window.stroeer_ad_config : {firstBid: '2.0', secondBid: '3.0', thirdBid: '4.0'};
-    winner.auctionPrice = bidResponse.maxprice || bidResponse.cpm;
-    ad = bidResponse.generateAd(winner);
+    const winner = typeof window['stroeer_ad_config'] === 'object' ? window['stroeer_ad_config'] : { firstBid: '2.0', secondBid: '3.0', thirdBid: '4.0' };
+    winner.auctionPrice = bidResponse['maxprice'] || bidResponse.cpm;
+    ad = bidResponse['generateAd'](winner);
   }
   // -- END: stroeer custom code for testing only
 
