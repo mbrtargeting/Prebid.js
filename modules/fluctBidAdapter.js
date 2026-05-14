@@ -1,4 +1,4 @@
-import { _each, deepSetValue, isEmpty } from '../src/utils.js';
+import { _each, deepAccess, deepSetValue, isEmpty, isFn, isPlainObject } from '../src/utils.js';
 import { config } from '../src/config.js';
 import { registerBidder } from '../src/adapters/bidderFactory.js';
 
@@ -9,10 +9,84 @@ import { registerBidder } from '../src/adapters/bidderFactory.js';
  */
 
 const BIDDER_CODE = 'fluct';
-const END_POINT = 'https://hb.adingo.jp/prebid';
-const VERSION = '1.2';
+const END_POINT = 'https://hb.adingo.jp/prebid/';
+const VERSION = '1.5';
 const NET_REVENUE = true;
 const TTL = 300;
+const DEFAULT_CURRENCY = 'JPY';
+
+/**
+ * Get bid floor price for a specific size
+ * @param {BidRequest} bid
+ * @param {Array} size - [width, height]
+ * @returns {{floor: number, currency: string}|null} floor price data
+ */
+function getBidFloorForSize(bid, size) {
+  if (!isFn(bid.getFloor)) {
+    return null;
+  }
+
+  const floorInfo = bid.getFloor({
+    currency: DEFAULT_CURRENCY,
+    mediaType: '*',
+    size: size
+  });
+
+  if (isPlainObject(floorInfo) && !isNaN(floorInfo.floor) && floorInfo.currency === DEFAULT_CURRENCY) {
+    return {
+      floor: floorInfo.floor,
+      currency: floorInfo.currency
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Get the highest bid floor price across all sizes
+ * @param {BidRequest} bid
+ * @returns {{floor: number, currency: string}|null} floor price data
+ */
+function getHighestBidFloor(bid) {
+  const sizes = bid.sizes || [];
+  let highestFloor = 0;
+  let floorCurrency = DEFAULT_CURRENCY;
+
+  if (sizes.length > 0) {
+    sizes.forEach(size => {
+      const floorData = getBidFloorForSize(bid, size);
+      if (floorData && floorData.floor > highestFloor) {
+        highestFloor = floorData.floor;
+        floorCurrency = floorData.currency;
+      }
+    });
+
+    if (highestFloor > 0) {
+      return {
+        floor: highestFloor,
+        currency: floorCurrency
+      };
+    }
+  }
+
+  // Final fallback: use params.bidfloor if available
+  if (bid.params.bidfloor) {
+    // Check currency if specified - only JPY is supported
+    if (bid.params.currency && bid.params.currency !== DEFAULT_CURRENCY) {
+      return null;
+    }
+    const floorValue = parseFloat(bid.params.bidfloor);
+    if (isNaN(floorValue)) {
+      return null;
+    }
+    return {
+      floor: floorValue,
+      currency: DEFAULT_CURRENCY
+    };
+  }
+
+  return null;
+}
 
 export const spec = {
   code: BIDDER_CODE,
@@ -44,6 +118,20 @@ export const spec = {
       const data = {};
 
       data.page = page;
+
+      const ortb2Site = bidderRequest.ortb2?.site;
+      if (ortb2Site) {
+        data.site = {};
+        if (ortb2Site.cat) data.site.cat = ortb2Site.cat;
+        if (ortb2Site.sectioncat) data.site.sectioncat = ortb2Site.sectioncat;
+        if (ortb2Site.pagecat) data.site.pagecat = ortb2Site.pagecat;
+        if (ortb2Site.keywords) data.site.keywords = ortb2Site.keywords;
+        if (ortb2Site.content) data.site.content = ortb2Site.content;
+        if (ortb2Site.domain) data.site.domain = ortb2Site.domain;
+        if (ortb2Site.ref) data.site.ref = ortb2Site.ref;
+        if (ortb2Site.ext?.data) data.site.ext = { data: ortb2Site.ext.data };
+      }
+
       data.adUnitCode = request.adUnitCode;
       data.bidId = request.bidId;
       data.user = {
@@ -56,7 +144,10 @@ export const spec = {
 
       if (impExt) {
         data.transactionId = impExt.tid;
-        data.gpid = impExt.gpid ?? impExt.data?.pbadslot ?? impExt.data?.adserver?.adslot;
+        data.gpid = impExt.gpid ?? impExt.data?.adserver?.adslot;
+        if (impExt.data) {
+          deepSetValue(data, 'imp.ext.data', impExt.data);
+        }
       }
       if (bidderRequest.gdprConsent) {
         deepSetValue(data, 'regs.gdpr', {
@@ -83,18 +174,57 @@ export const spec = {
           sid: bidderRequest.ortb2.regs.gpp_sid
         });
       }
+      if (bidderRequest.ortb2?.user?.ext?.data?.im_segments) {
+        deepSetValue(data, 'params.kv.imsids', bidderRequest.ortb2.user.ext.data.im_segments);
+      }
       data.sizes = [];
       _each(request.sizes, (size) => {
-        data.sizes.push({
+        const sizeObj = {
           w: size[0],
           h: size[1]
-        });
+        };
+
+        // Get floor price for this specific size
+        const floorData = getBidFloorForSize(request, size);
+        if (floorData) {
+          sizeObj.ext = {
+            floor: floorData.floor
+          };
+        }
+
+        data.sizes.push(sizeObj);
       });
 
       data.params = request.params;
 
-      if (request.schain) {
-        data.schain = request.schain;
+      const schain = request?.ortb2?.source?.ext?.schain;
+      if (schain) {
+        data.schain = schain;
+      }
+
+      data.instl = deepAccess(request, 'ortb2Imp.instl') === 1 || request.params.instl === 1 ? 1 : 0;
+
+      if (deepAccess(request, 'ortb2Imp.rwdd') === 1) data.rwdd = 1;
+
+      const pos = deepAccess(request, 'mediaTypes.banner.pos') ?? deepAccess(request, 'ortb2Imp.ext.data.pos');
+      if (pos != null) data.pos = pos;
+
+      const ortb2Device = bidderRequest.ortb2?.device;
+      if (ortb2Device) {
+        data.device = {};
+        if (ortb2Device.sua) data.device.sua = ortb2Device.sua;
+        if (ortb2Device.ua) data.device.ua = ortb2Device.ua;
+        if (ortb2Device.w) data.device.w = ortb2Device.w;
+        if (ortb2Device.h) data.device.h = ortb2Device.h;
+        if (ortb2Device.language) data.device.language = ortb2Device.language;
+        if (ortb2Device.devicetype) data.device.devicetype = ortb2Device.devicetype;
+      }
+
+      // Set top-level bidfloor to the highest floor across all sizes
+      const highestFloorData = getHighestBidFloor(request);
+      if (highestFloorData) {
+        data.bidfloor = highestFloorData.floor;
+        data.bidfloorcur = highestFloorData.currency;
       }
 
       const searchParams = new URLSearchParams({
@@ -139,7 +269,7 @@ export const spec = {
       const callImpBeacon = `<script type="application/javascript">` +
         `(function() { var img = new Image(); img.src = "${beaconUrl}"})()` +
         `</script>`;
-      let data = {
+      const data = {
         requestId: res.id,
         currency: res.cur,
         cpm: parseFloat(bid.price) || 0,

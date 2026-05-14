@@ -20,8 +20,8 @@ export const spec = {
    * @return boolean True if this is a valid bid, and false otherwise.
    */
   isBidRequestValid: function (bid) {
-    let sizesCheck = !!bid.sizes
-    let paramSizesCheck = !!bid.params.sizes
+    const sizesCheck = !!bid.sizes
+    const paramSizesCheck = !!bid.params.sizes
     var sizeConfirmed = false
     if (sizesCheck) {
       if (bid.sizes.length < 1) {
@@ -50,10 +50,10 @@ export const spec = {
    * @return {Object} Info describing the request to the server.
    */
   buildRequests: function (validBidRequests, bidderRequest) {
-    let payloadItems = {};
+    const payloadItems = {};
     validBidRequests.forEach(bidRequest => {
-      let sizes = [];
-      let placementId = this.setPlacementID(bidRequest.params.placementId)
+      const sizes = [];
+      const placementId = this.setPlacementID(bidRequest.params.placementId)
       payloadItems[placementId] = {}
       if (bidRequest.sizes.length > 0) {
         if (Array.isArray(bidRequest.sizes[0])) {
@@ -66,7 +66,7 @@ export const spec = {
         payloadItems[placementId]['sizes'] = sizes
       }
       if (bidRequest.mediaTypes != null) {
-        for (let i in bidRequest.mediaTypes) {
+        for (const i in bidRequest.mediaTypes) {
           payloadItems[placementId][i] = {
             ...bidRequest.mediaTypes[i]
           }
@@ -74,15 +74,25 @@ export const spec = {
       }
       let consentTemp = ''
       let consentRequiredTemp = false
-      if (bidderRequest && bidderRequest.gdprConsent) {
+      if (bidderRequest?.gdprConsent) {
         consentTemp = bidderRequest.gdprConsent.consentString
         // will check if the gdprApplies field was populated with a boolean value (ie from page config).  If it's undefined, then default to true
         consentRequiredTemp = (typeof bidderRequest.gdprConsent.gdprApplies === 'boolean') ? bidderRequest.gdprConsent.gdprApplies : true
       }
-
+      let gppString = ''
+      let applicablesections = []
+      if (bidderRequest?.gppConsent) {
+        gppString = bidderRequest.gppConsent.gppString
+        applicablesections = bidderRequest.gppConsent.applicableSections
+      }
       payloadItems[placementId]['gdprConsentString'] = consentTemp
       payloadItems[placementId]['gdprConsentRequired'] = consentRequiredTemp
       payloadItems[placementId]['bidId'] = bidRequest.bidId
+      payloadItems[placementId]['gppString'] = gppString
+      payloadItems[placementId]['gppApplicableSections'] = applicablesections
+      if (bidderRequest?.uspConsent) {
+        payloadItems[placementId]['uspConsent'] = bidderRequest.uspConsent
+      }
     });
     const payload = payloadItems;
     const payloadString = JSON.stringify(payload);

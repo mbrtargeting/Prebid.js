@@ -1,7 +1,7 @@
-import {spec} from '../../../modules/zeta_global_sspBidAdapter.js'
-import {BANNER, VIDEO} from '../../../src/mediaTypes';
-import {deepClone} from '../../../src/utils';
-import {expect} from 'chai';
+import { spec } from '../../../modules/zeta_global_sspBidAdapter.js'
+import { BANNER, VIDEO } from '../../../src/mediaTypes.js';
+import { deepClone } from '../../../src/utils.js';
+import { expect } from 'chai';
 
 describe('Zeta Ssp Bid Adapter', function () {
   const eids = [
@@ -127,12 +127,16 @@ describe('Zeta Ssp Bid Adapter', function () {
       gdprApplies: 1,
       consentString: 'consentString'
     },
-    schain: schain,
     uspConsent: 'someCCPAString',
     params: params,
     userIdAsEids: eids,
     timeout: 500,
     ortb2: {
+      source: {
+        ext: {
+          schain: schain
+        }
+      },
       bcat: ['CAT1'],
       badv: ['test1.com'],
       site: {
@@ -192,7 +196,13 @@ describe('Zeta Ssp Bid Adapter', function () {
       gdprApplies: 1,
       consentString: 'consentString'
     },
-    schain: schain,
+    ortb2: {
+      source: {
+        ext: {
+          schain: schain
+        }
+      }
+    },
     uspConsent: 'someCCPAString',
     params: params,
     userIdAsEids: eids,
@@ -450,31 +460,31 @@ describe('Zeta Ssp Bid Adapter', function () {
     const USER_SYNC_URL_IMAGE = 'https://ssp.disqus.com/sync?type=image';
 
     it('execute as per config', function() {
-      expect(spec.getUserSyncs({iframeEnabled: true})).to.deep.equal([{
+      expect(spec.getUserSyncs({ iframeEnabled: true })).to.deep.equal([{
         type: 'iframe', url: `${USER_SYNC_URL_IFRAME}`
       }]);
-      expect(spec.getUserSyncs({iframeEnabled: false})).to.deep.equal([{
+      expect(spec.getUserSyncs({ iframeEnabled: false })).to.deep.equal([{
         type: 'image', url: `${USER_SYNC_URL_IMAGE}`
       }]);
     });
 
     it('GDPR', function() {
-      expect(spec.getUserSyncs({iframeEnabled: true}, {}, {gdprApplies: true, consentString: 'foo'})).to.deep.equal([{
+      expect(spec.getUserSyncs({ iframeEnabled: true }, {}, { gdprApplies: true, consentString: 'foo' })).to.deep.equal([{
         type: 'iframe', url: `${USER_SYNC_URL_IFRAME}&gdpr=1&gdpr_consent=foo`
       }]);
-      expect(spec.getUserSyncs({iframeEnabled: true}, {}, {gdprApplies: false, consentString: 'foo'})).to.deep.equal([{
+      expect(spec.getUserSyncs({ iframeEnabled: true }, {}, { gdprApplies: false, consentString: 'foo' })).to.deep.equal([{
         type: 'iframe', url: `${USER_SYNC_URL_IFRAME}&gdpr=0&gdpr_consent=foo`
       }]);
-      expect(spec.getUserSyncs({iframeEnabled: true}, {}, {gdprApplies: true, consentString: undefined})).to.deep.equal([{
+      expect(spec.getUserSyncs({ iframeEnabled: true }, {}, { gdprApplies: true, consentString: undefined })).to.deep.equal([{
         type: 'iframe', url: `${USER_SYNC_URL_IFRAME}&gdpr=1&gdpr_consent=`
       }]);
-      expect(spec.getUserSyncs({iframeEnabled: false}, {}, {gdprApplies: true, consentString: 'foo'})).to.deep.equal([{
+      expect(spec.getUserSyncs({ iframeEnabled: false }, {}, { gdprApplies: true, consentString: 'foo' })).to.deep.equal([{
         type: 'image', url: `${USER_SYNC_URL_IMAGE}&gdpr=1&gdpr_consent=foo`
       }]);
-      expect(spec.getUserSyncs({iframeEnabled: false}, {}, {gdprApplies: false, consentString: 'foo'})).to.deep.equal([{
+      expect(spec.getUserSyncs({ iframeEnabled: false }, {}, { gdprApplies: false, consentString: 'foo' })).to.deep.equal([{
         type: 'image', url: `${USER_SYNC_URL_IMAGE}&gdpr=0&gdpr_consent=foo`
       }]);
-      expect(spec.getUserSyncs({iframeEnabled: false}, {}, {gdprApplies: true, consentString: undefined})).to.deep.equal([{
+      expect(spec.getUserSyncs({ iframeEnabled: false }, {}, { gdprApplies: true, consentString: undefined })).to.deep.equal([{
         type: 'image', url: `${USER_SYNC_URL_IMAGE}&gdpr=1&gdpr_consent=`
       }]);
     });
@@ -490,7 +500,7 @@ describe('Zeta Ssp Bid Adapter', function () {
 
     describe('GPP', function() {
       it('should return userSync url without GPP consent if gppConsent is undefined', () => {
-        const result = spec.getUserSyncs({iframeEnabled: true}, undefined, undefined, undefined, undefined);
+        const result = spec.getUserSyncs({ iframeEnabled: true }, undefined, undefined, undefined, undefined);
         expect(result).to.deep.equal([{
           type: 'iframe', url: `${USER_SYNC_URL_IFRAME}`
         }]);
@@ -498,7 +508,7 @@ describe('Zeta Ssp Bid Adapter', function () {
 
       it('should return userSync url without GPP consent if gppConsent.gppString is undefined', () => {
         const gppConsent = { applicableSections: ['5'] };
-        const result = spec.getUserSyncs({iframeEnabled: true}, undefined, undefined, undefined, gppConsent);
+        const result = spec.getUserSyncs({ iframeEnabled: true }, undefined, undefined, undefined, gppConsent);
         expect(result).to.deep.equal([{
           type: 'iframe', url: `${USER_SYNC_URL_IFRAME}`
         }]);
@@ -506,7 +516,7 @@ describe('Zeta Ssp Bid Adapter', function () {
 
       it('should return userSync url without GPP consent if gppConsent.applicableSections is undefined', () => {
         const gppConsent = { gppString: 'DBACNYA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA~1YNN' };
-        const result = spec.getUserSyncs({iframeEnabled: true}, undefined, undefined, undefined, gppConsent);
+        const result = spec.getUserSyncs({ iframeEnabled: true }, undefined, undefined, undefined, gppConsent);
         expect(result).to.deep.equal([{
           type: 'iframe', url: `${USER_SYNC_URL_IFRAME}`
         }]);
@@ -514,7 +524,7 @@ describe('Zeta Ssp Bid Adapter', function () {
 
       it('should return userSync url without GPP consent if gppConsent.applicableSections is an empty array', () => {
         const gppConsent = { gppString: 'DBACNYA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA~1YNN', applicableSections: [] };
-        const result = spec.getUserSyncs({iframeEnabled: true}, undefined, undefined, undefined, gppConsent);
+        const result = spec.getUserSyncs({ iframeEnabled: true }, undefined, undefined, undefined, gppConsent);
         expect(result).to.deep.equal([{
           type: 'iframe', url: `${USER_SYNC_URL_IFRAME}`
         }]);
@@ -522,7 +532,7 @@ describe('Zeta Ssp Bid Adapter', function () {
 
       it('should concatenate gppString and applicableSections values in the returned userSync iframe url', () => {
         const gppConsent = { gppString: 'DBACNYA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA~1YNN', applicableSections: [5] };
-        const result = spec.getUserSyncs({iframeEnabled: true}, undefined, undefined, undefined, gppConsent);
+        const result = spec.getUserSyncs({ iframeEnabled: true }, undefined, undefined, undefined, gppConsent);
         expect(result).to.deep.equal([{
           type: 'iframe', url: `${USER_SYNC_URL_IFRAME}&gpp=${encodeURIComponent(gppConsent.gppString)}&gpp_sid=${encodeURIComponent(gppConsent.applicableSections)}`
         }]);
@@ -530,7 +540,7 @@ describe('Zeta Ssp Bid Adapter', function () {
 
       it('should concatenate gppString and applicableSections values in the returned userSync image url', () => {
         const gppConsent = { gppString: 'DBACNYA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA~1YNN', applicableSections: [5] };
-        const result = spec.getUserSyncs({iframeEnabled: false}, undefined, undefined, undefined, gppConsent);
+        const result = spec.getUserSyncs({ iframeEnabled: false }, undefined, undefined, undefined, gppConsent);
         expect(result).to.deep.equal([{
           type: 'image', url: `${USER_SYNC_URL_IMAGE}&gpp=${encodeURIComponent(gppConsent.gppString)}&gpp_sid=${encodeURIComponent(gppConsent.applicableSections)}`
         }]);
@@ -549,7 +559,7 @@ describe('Zeta Ssp Bid Adapter', function () {
 
   describe('buildRequests: GPP', function() {
     it('Request params check with GPP Consent', function () {
-      let bidRequest = {
+      const bidRequest = {
         gppConsent: {
           'gppString': 'DBACNYA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA~1YNN',
           'fullGppData': {
@@ -586,21 +596,21 @@ describe('Zeta Ssp Bid Adapter', function () {
           'apiVersion': 1
         }
       };
-      let request = spec.buildRequests(bannerRequest, bidRequest);
-      let data = JSON.parse(request.data);
+      const request = spec.buildRequests(bannerRequest, bidRequest);
+      const data = JSON.parse(request.data);
       expect(data.regs.gpp).to.equal('DBACNYA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA~1YNN');
       expect(data.regs.gpp_sid[0]).to.equal(5);
     });
 
     it('Request params check without GPP Consent', function () {
-      let bidRequest = {};
-      let request = spec.buildRequests(bannerRequest, bidRequest);
-      let data = JSON.parse(request.data);
+      const bidRequest = {};
+      const request = spec.buildRequests(bannerRequest, bidRequest);
+      const data = JSON.parse(request.data);
       expect(data.regs).to.equal(undefined);
     });
 
     it('Request params check with GPP Consent read from ortb2', function () {
-      let bidRequest = {
+      const bidRequest = {
         ortb2: {
           regs: {
             'gpp': 'DBACNYA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA~1YNN',
@@ -610,8 +620,8 @@ describe('Zeta Ssp Bid Adapter', function () {
           }
         }
       };
-      let request = spec.buildRequests(bannerRequest, bidRequest);
-      let data = JSON.parse(request.data);
+      const request = spec.buildRequests(bannerRequest, bidRequest);
+      const data = JSON.parse(request.data);
       expect(data.regs.gpp).to.equal('DBACNYA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA~1YNN');
       expect(data.regs.gpp_sid[0]).to.equal(5);
     });

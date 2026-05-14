@@ -4,8 +4,21 @@ import {
 import {
   spec
 } from 'modules/smartxBidAdapter.js';
+import { getGlobal } from '../../../src/prebidGlobal.js';
 
 describe('The smartx adapter', function () {
+  before(function () {
+    // Seed pbjs.adUnits so the Prebid.js core Renderer.prototype.render
+    // path can call pbjs.adUnits.find() without crashing. Adapter unit
+    // tests import the module directly without running a full pbjs init,
+    // so pbjs.adUnits is undefined by default and the lookup inside
+    // isRendererPreferredFromAdUnit (src/Renderer.js) throws as soon as
+    // bid.renderer.render() runs in the oustreamRender describe block.
+    // Matches the same workaround already in use in
+    // test/spec/modules/showheroes-bsBidAdapter_spec.js.
+    getGlobal().adUnits = [];
+  });
+
   function getValidBidObject() {
     return {
       bidId: 123,
@@ -337,15 +350,21 @@ describe('The smartx adapter', function () {
     it('should pass schain param', function () {
       var request;
 
-      bid.schain = {
-        complete: 1,
-        nodes: [
-          {
-            asi: 'indirectseller.com',
-            sid: '00001',
-            hp: 1
+      bid.ortb2 = {
+        source: {
+          ext: {
+            schain: {
+              complete: 1,
+              nodes: [
+                {
+                  asi: 'indirectseller.com',
+                  sid: '00001',
+                  hp: 1
+                }
+              ]
+            }
           }
-        ]
+        }
       }
 
       request = spec.buildRequests([bid], bidRequestObj)[0];

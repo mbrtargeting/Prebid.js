@@ -2,8 +2,10 @@
   "parentModules": {
     "userId": [
       "33acrossIdSystem",
+      "abtshieldIdSystem",
       "admixerIdSystem",
       "adqueryIdSystem",
+      "adplusIdSystem",
       "adriverIdSystem",
       "adtelligentIdSystem",
       "amxIdSystem",
@@ -13,11 +15,11 @@
       "czechAdIdSystem",
       "dacIdSystem",
       "deepintentDpesIdSystem",
-      "dmdIdSystem",
       "euidIdSystem",
       "fabrickIdSystem",
       "freepassIdSystem",
       "ftrackIdSystem",
+      "gemiusIdSystem",
       "gravitoIdSystem",
       "growthCodeIdSystem",
       "hadronIdSystem",
@@ -30,6 +32,7 @@
       "kinessoIdSystem",
       "liveIntentIdSystem",
       "lmpIdSystem",
+      "locIdSystem",
       "lockrAIMIdSystem",
       "lotamePanoramaIdSystem",
       "merkleIdSystem",
@@ -47,9 +50,10 @@
       "pubProvidedIdSystem",
       "publinkIdSystem",
       "pubmaticIdSystem",
-      "quantcastIdSystem",
+      "rediadsIdSystem",
       "rewardedInterestIdSystem",
       "sharedIdSystem",
+      "startioIdSystem",
       "taboolaIdSystem",
       "tapadIdSystem",
       "teadsIdSystem",
@@ -62,10 +66,6 @@
       "yandexIdSystem",
       "zeotapIdPlusIdSystem"
     ],
-    "adpod": [
-      "freeWheelAdserverVideo",
-      "dfpAdpod"
-    ],
     "rtdModule": [
       "1plusXRtdProvider",
       "51DegreesRtdProvider",
@@ -75,6 +75,7 @@
       "adlooxRtdProvider",
       "adlaneRtdProvider",
       "adnuntiusRtdProvider",
+      "agenticAudienceRtdProvider",
       "airgridRtdProvider",
       "akamaiDapRtdProvider",
       "anonymisedRtdProvider",
@@ -87,6 +88,7 @@
       "cleanioRtdProvider",
       "confiantRtdProvider",
       "contxtfulRtdProvider",
+      "datamageRtdProvider",
       "dgkeywordRtdProvider",
       "dynamicAdBoostRtdProvider",
       "experianRtdProvider",
@@ -99,6 +101,7 @@
       "hadronRtdProvider",
       "humansecurityRtdProvider",
       "iasRtdProvider",
+      "insuradsRtdProvider",
       "imRtdProvider",
       "intersectionRtdProvider",
       "jwplayerRtdProvider",
@@ -106,14 +109,17 @@
       "mediafilterRtdProvider",
       "medianetRtdProvider",
       "mgidRtdProvider",
+      "mileRtdProvider",
       "mobianRtdProvider",
       "neuwoRtdProvider",
       "nodalsAiRtdProvider",
+      "oftmediaRtdProvider",
       "oneKeyRtdProvider",
       "optableRtdProvider",
       "optimeraRtdProvider",
       "overtoneRtdProvider",
       "oxxionRtdProvider",
+      "panxoRtdProvider",
       "permutiveRtdProvider",
       "pubmaticRtdProvider",
       "pubxaiRtdProvider",
@@ -122,12 +128,14 @@
       "raynRtdProvider",
       "reconciliationRtdProvider",
       "relevadRtdProvider",
+      "scope3RtdProvider",
       "semantiqRtdProvider",
       "sirdataRtdProvider",
       "symitriDapRtdProvider",
       "timeoutRtdProvider",
       "weboramaRtdProvider",
-      "wurflRtdProvider"
+      "wurflRtdProvider",
+      "encypherRtdProvider"
     ],
     "fpdModule": [
       "validationFpdModule",
@@ -137,10 +145,6 @@
       "jwplayerVideoProvider",
       "videojsVideoProvider",
       "adplayerproVideoProvider"
-    ],
-    "paapi": [
-      "paapiForGpt",
-      "topLevelPaapi"
     ]
   }
 }

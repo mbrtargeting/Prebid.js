@@ -1,7 +1,7 @@
-import {registerBidder} from '../src/adapters/bidderFactory.js';
-import {logMessage} from '../src/utils.js';
-import {BANNER} from '../src/mediaTypes.js';
-import {ortbConverter} from '../libraries/ortbConverter/converter.js'
+import { registerBidder } from '../src/adapters/bidderFactory.js';
+import { logMessage } from '../src/utils.js';
+import { BANNER } from '../src/mediaTypes.js';
+import { ortbConverter } from '../libraries/ortbConverter/converter.js'
 
 const BIDDER_SERVICE_URL = 'https://bidding-dsp.ad-m.asia/dsp/api/bid/s/s/freepass';
 
@@ -68,8 +68,10 @@ export const spec = {
     logMessage('FreePass BidAdapter interpreted ORTB bid request as ', data);
 
     const freepassIdObj = validBidRequests[0].userIdAsEids?.find(eid => eid.source === 'freepass.jp');
-    data.user = injectIdsToUser(data.user, freepassIdObj.uids[0]);
-    data.device = injectIPtoDevice(data.device, freepassIdObj.uids[0]);
+    if (freepassIdObj) {
+      data.user = injectIdsToUser(data.user, freepassIdObj.uids[0]);
+      data.device = injectIPtoDevice(data.device, freepassIdObj.uids[0]);
+    }
 
     // set site.page & site.publisher
     data.site = data.site || {};
@@ -99,14 +101,14 @@ export const spec = {
       method: 'POST',
       url: BIDDER_SERVICE_URL,
       data,
-      options: { withCredentials: false }
+      options: { withCredentials: true }
     };
   },
 
   interpretResponse(serverResponse, bidRequest) {
     logMessage('FreePass BidAdapter is interpreting server response: ', serverResponse);
     logMessage('FreePass BidAdapter is using bid request: ', bidRequest);
-    const bids = converter.fromORTB({response: serverResponse.body, request: bidRequest.data}).bids;
+    const bids = converter.fromORTB({ response: serverResponse.body, request: bidRequest.data }).bids;
     logMessage('FreePass BidAdapter interpreted ORTB bids as ', bids);
 
     return bids;

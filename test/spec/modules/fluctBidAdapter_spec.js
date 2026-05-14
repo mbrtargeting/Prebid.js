@@ -1,7 +1,7 @@
-import {expect} from 'chai';
-import {spec} from 'modules/fluctBidAdapter';
-import {newBidder} from 'src/adapters/bidderFactory';
-import {config} from 'src/config';
+import { expect } from 'chai';
+import { spec } from 'modules/fluctBidAdapter';
+import { newBidder } from 'src/adapters/bidderFactory';
+import { config } from 'src/config';
 
 describe('fluctAdapter', function () {
   const adapter = newBidder(spec);
@@ -26,14 +26,14 @@ describe('fluctAdapter', function () {
     });
 
     it('should return false when required params are not passed', function () {
-      let invalidBid = Object.assign({}, bid);
+      const invalidBid = Object.assign({}, bid);
       delete invalidBid.params;
       invalidBid.params = {};
       expect(spec.isBidRequestValid(invalidBid)).to.equal(false);
     });
 
     it('should return true when dfpUnitCode is not passed', function () {
-      let invalidBid = Object.assign({}, bid);
+      const invalidBid = Object.assign({}, bid);
       delete invalidBid.params;
       invalidBid.params = {
         tagId: '10000:100000001',
@@ -43,7 +43,7 @@ describe('fluctAdapter', function () {
     });
 
     it('should return false when groupId is not passed', function () {
-      let invalidBid = Object.assign({}, bid);
+      const invalidBid = Object.assign({}, bid);
       delete invalidBid.params;
       invalidBid.params = {
         dfpUnitCode: '/1000/dfp_unit_code',
@@ -91,7 +91,7 @@ describe('fluctAdapter', function () {
 
     it('sends bid request to ENDPOINT with query parameter', function () {
       const request = spec.buildRequests(bidRequests, bidderRequest)[0];
-      expect(request.url).to.equal('https://hb.adingo.jp/prebid?dfpUnitCode=%2F100000%2Funit_code&tagId=10000%3A100000001&groupId=1000000002');
+      expect(request.url).to.equal('https://hb.adingo.jp/prebid/?dfpUnitCode=%2F100000%2Funit_code&tagId=10000%3A100000001&groupId=1000000002');
     });
 
     it('includes data.page by default', function () {
@@ -139,13 +139,13 @@ describe('fluctAdapter', function () {
       expect(request.data.gpid).to.eql('gpid');
     });
 
-    it('sends ortb2Imp.ext.data.pbadslot as gpid', function () {
+    it('sends ortb2Imp.ext.gpid as gpid', function () {
       const request = spec.buildRequests(bidRequests.map((req) => ({
         ...req,
         ortb2Imp: {
           ext: {
+            gpid: 'data-pbadslot',
             data: {
-              pbadslot: 'data-pbadslot',
               adserver: {
                 adslot: 'data-adserver-adslot',
               },
@@ -338,16 +338,22 @@ describe('fluctAdapter', function () {
       // this should be done by schain.js
       const bidRequests2 = bidRequests.map(
         (bidReq) => Object.assign({}, bidReq, {
-          schain: {
-            ver: '1.0',
-            complete: 1,
-            nodes: [
-              {
-                asi: 'example.com',
-                sid: 'publisher-id',
-                hp: 1
+          ortb2: {
+            source: {
+              ext: {
+                schain: {
+                  ver: '1.0',
+                  complete: 1,
+                  nodes: [
+                    {
+                      asi: 'example.com',
+                      sid: 'publisher-id',
+                      hp: 1
+                    }
+                  ]
+                }
               }
-            ]
+            }
           }
         })
       );
@@ -431,6 +437,301 @@ describe('fluctAdapter', function () {
       )[0];
       expect(request.data.regs.gpp.string).to.eql('gpp-consent-string');
       expect(request.data.regs.gpp.sid).to.eql([1, 2, 3]);
+    });
+
+    it('includes no data.site by default', function () {
+      const request = spec.buildRequests(bidRequests, bidderRequest)[0];
+      expect(request.data.site).to.eql(undefined);
+    });
+
+    it('includes data.site if ortb2.site exists', function () {
+      const request = spec.buildRequests(bidRequests, Object.assign({}, bidderRequest, {
+        ortb2: {
+          site: {
+            cat: ['IAB1', 'IAB2'],
+            sectioncat: ['IAB1-1'],
+            pagecat: ['IAB1-2'],
+            keywords: 'sports,news',
+            content: { language: 'ja' },
+            domain: 'example.com',
+            ref: 'https://referrer.example.com',
+            ext: { data: { customKey: 'customValue' } },
+          },
+        },
+      }))[0];
+      expect(request.data.site).to.eql({
+        cat: ['IAB1', 'IAB2'],
+        sectioncat: ['IAB1-1'],
+        pagecat: ['IAB1-2'],
+        keywords: 'sports,news',
+        content: { language: 'ja' },
+        domain: 'example.com',
+        ref: 'https://referrer.example.com',
+        ext: { data: { customKey: 'customValue' } },
+      });
+    });
+
+    it('includes only specified fields in data.site', function () {
+      const request = spec.buildRequests(bidRequests, Object.assign({}, bidderRequest, {
+        ortb2: {
+          site: {
+            cat: ['IAB1'],
+            domain: 'example.com',
+          },
+        },
+      }))[0];
+      expect(request.data.site).to.eql({
+        cat: ['IAB1'],
+        domain: 'example.com',
+      });
+    });
+
+    it('includes no data.pos by default', function () {
+      const request = spec.buildRequests(bidRequests, bidderRequest)[0];
+      expect(request.data.pos).to.eql(undefined);
+    });
+
+    it('includes data.pos from mediaTypes.banner.pos', function () {
+      const request = spec.buildRequests(bidRequests.map((req) => ({
+        ...req,
+        mediaTypes: { banner: { sizes: [[300, 250]], pos: 1 } },
+      })), bidderRequest)[0];
+      expect(request.data.pos).to.eql(1);
+    });
+
+    it('includes data.pos from ortb2Imp.ext.data.pos as fallback', function () {
+      const request = spec.buildRequests(bidRequests.map((req) => ({
+        ...req,
+        ortb2Imp: { ext: { data: { pos: 3 } } },
+      })), bidderRequest)[0];
+      expect(request.data.pos).to.eql(3);
+    });
+
+    it('prefers mediaTypes.banner.pos over ortb2Imp.ext.data.pos', function () {
+      const request = spec.buildRequests(bidRequests.map((req) => ({
+        ...req,
+        mediaTypes: { banner: { sizes: [[300, 250]], pos: 1 } },
+        ortb2Imp: { ext: { data: { pos: 3 } } },
+      })), bidderRequest)[0];
+      expect(request.data.pos).to.eql(1);
+    });
+
+    it('includes no data.device by default', function () {
+      const request = spec.buildRequests(bidRequests, bidderRequest)[0];
+      expect(request.data.device).to.eql(undefined);
+    });
+
+    it('includes data.device if ortb2.device exists', function () {
+      const sua = { browsers: [{ brand: 'Chrome', version: ['120'] }] };
+      const request = spec.buildRequests(bidRequests, Object.assign({}, bidderRequest, {
+        ortb2: {
+          device: {
+            sua,
+            ua: 'Mozilla/5.0',
+            w: 1920,
+            h: 1080,
+            language: 'ja',
+            devicetype: 2,
+          },
+        },
+      }))[0];
+      expect(request.data.device).to.eql({
+        sua,
+        ua: 'Mozilla/5.0',
+        w: 1920,
+        h: 1080,
+        language: 'ja',
+        devicetype: 2,
+      });
+    });
+
+    it('includes only specified fields in data.device', function () {
+      const sua = { browsers: [{ brand: 'Chrome', version: ['120'] }] };
+      const request = spec.buildRequests(bidRequests, Object.assign({}, bidderRequest, {
+        ortb2: {
+          device: { sua },
+        },
+      }))[0];
+      expect(request.data.device).to.eql({ sua });
+    });
+
+    it('includes no data.imp by default', function () {
+      const request = spec.buildRequests(bidRequests, bidderRequest)[0];
+      expect(request.data.imp).to.eql(undefined);
+    });
+
+    it('includes data.imp.ext.data from ortb2Imp.ext.data', function () {
+      const request = spec.buildRequests(bidRequests.map((req) => ({
+        ...req,
+        ortb2Imp: {
+          ext: {
+            data: {
+              section: 'sports',
+              contentType: 'article',
+            },
+          },
+        },
+      })), bidderRequest)[0];
+      expect(request.data.imp.ext.data).to.eql({
+        section: 'sports',
+        contentType: 'article',
+      });
+    });
+
+    it('sends no rwdd by default', function () {
+      const request = spec.buildRequests(bidRequests, bidderRequest)[0];
+      expect(request.data.rwdd).to.eql(undefined);
+    });
+
+    it('sends ortb2Imp.rwdd as rwdd', function () {
+      const request = spec.buildRequests(bidRequests.map((req) => ({
+        ...req,
+        ortb2Imp: { rwdd: 1 },
+      })), bidderRequest)[0];
+      expect(request.data.rwdd).to.eql(1);
+    });
+
+    it('sends no rwdd when ortb2Imp.rwdd is 0', function () {
+      const request = spec.buildRequests(bidRequests.map((req) => ({
+        ...req,
+        ortb2Imp: { rwdd: 0 },
+      })), bidderRequest)[0];
+      expect(request.data.rwdd).to.eql(undefined);
+    });
+
+    it('sends no instl as instl = 0', function () {
+      const request = spec.buildRequests(bidRequests, bidderRequest)[0];
+      expect(request.data.instl).to.eql(0);
+    })
+
+    it('sends ortb2Imp.instl as instl = 0', function () {
+      const request = spec.buildRequests(bidRequests.map((req) => ({
+        ...req,
+        ortb2Imp: {
+          instl: 0,
+        },
+      })), bidderRequest)[0];
+      expect(request.data.instl).to.eql(0);
+    });
+
+    it('sends ortb2Imp.instl as instl', function () {
+      const request = spec.buildRequests(bidRequests.map((req) => ({
+        ...req,
+        ortb2Imp: {
+          instl: 1,
+        },
+      })), bidderRequest)[0];
+      expect(request.data.instl).to.eql(1);
+    });
+
+    it('includes no data.bidfloor by default (without floor module)', function () {
+      const request = spec.buildRequests(bidRequests, bidderRequest)[0];
+      expect(request.data.bidfloor).to.eql(undefined);
+      expect(request.data.bidfloorcur).to.eql(undefined);
+    });
+
+    it('includes data.bidfloor from params.bidfloor (without floor module)', function () {
+      const bidRequests2 = bidRequests.map(
+        (bidReq) => Object.assign({}, bidReq, {
+          params: {
+            ...bidReq.params,
+            bidfloor: 100,
+          }
+        })
+      );
+      const request = spec.buildRequests(bidRequests2, bidderRequest)[0];
+      expect(request.data.bidfloor).to.eql(100);
+      expect(request.data.bidfloorcur).to.eql('JPY');
+    });
+
+    it('includes data.bidfloor from getFloor', function () {
+      const bidRequests2 = bidRequests.map(
+        (bidReq) => Object.assign({}, bidReq, {
+          getFloor: () => ({
+            currency: 'JPY',
+            floor: 200
+          })
+        })
+      );
+      const request = spec.buildRequests(bidRequests2, bidderRequest)[0];
+      expect(request.data.bidfloor).to.eql(200);
+      expect(request.data.bidfloorcur).to.eql('JPY');
+    });
+
+    it('prefers getFloor over params.bidfloor', function () {
+      const bidRequests2 = bidRequests.map(
+        (bidReq) => Object.assign({}, bidReq, {
+          params: {
+            ...bidReq.params,
+            bidfloor: 100,
+          },
+          getFloor: () => ({
+            currency: 'JPY',
+            floor: 200
+          })
+        })
+      );
+      const request = spec.buildRequests(bidRequests2, bidderRequest)[0];
+      expect(request.data.bidfloor).to.eql(200);
+      expect(request.data.bidfloorcur).to.eql('JPY');
+    });
+
+    it('does not include data.bidfloor if getFloor returns different currency', function () {
+      const bidRequests2 = bidRequests.map(
+        (bidReq) => Object.assign({}, bidReq, {
+          getFloor: () => ({
+            currency: 'USD',
+            floor: 200
+          })
+        })
+      );
+      const request = spec.buildRequests(bidRequests2, bidderRequest)[0];
+      expect(request.data.bidfloor).to.eql(undefined);
+      expect(request.data.bidfloorcur).to.eql(undefined);
+    });
+
+    it('does not include data.bidfloor if getFloor returns invalid floor', function () {
+      const bidRequests2 = bidRequests.map(
+        (bidReq) => Object.assign({}, bidReq, {
+          getFloor: () => ({
+            currency: 'JPY',
+            floor: NaN
+          })
+        })
+      );
+      const request = spec.buildRequests(bidRequests2, bidderRequest)[0];
+      expect(request.data.bidfloor).to.eql(undefined);
+      expect(request.data.bidfloorcur).to.eql(undefined);
+    });
+
+    it('includes data.bidfloor from params.bidfloor with JPY currency', function () {
+      const bidRequests2 = bidRequests.map(
+        (bidReq) => Object.assign({}, bidReq, {
+          params: {
+            ...bidReq.params,
+            bidfloor: 100,
+            currency: 'JPY',
+          }
+        })
+      );
+      const request = spec.buildRequests(bidRequests2, bidderRequest)[0];
+      expect(request.data.bidfloor).to.eql(100);
+      expect(request.data.bidfloorcur).to.eql('JPY');
+    });
+
+    it('does not include data.bidfloor if params.currency is not JPY', function () {
+      const bidRequests2 = bidRequests.map(
+        (bidReq) => Object.assign({}, bidReq, {
+          params: {
+            ...bidReq.params,
+            bidfloor: 2,
+            currency: 'USD',
+          }
+        })
+      );
+      const request = spec.buildRequests(bidRequests2, bidderRequest)[0];
+      expect(request.data.bidfloor).to.eql(undefined);
+      expect(request.data.bidfloorcur).to.eql(undefined);
     });
   });
 

@@ -13,20 +13,20 @@ let sandbox;
 
 let clock;
 function enableInstreamTracking(regex) {
-  let configStub = sandbox.stub(config, 'getConfig');
+  const configStub = sandbox.stub(config, 'getConfig');
   configStub.withArgs('instreamTracking').returns(Object.assign(
     {
       enabled: true,
       maxWindow: 10,
       pollingFreq: 0
     },
-    regex && {urlPattern: regex},
+    regex && { urlPattern: regex },
   ));
 }
 
-function mockPerformanceApi({adServerCallSent, videoPresent}) {
-  let performanceStub = sandbox.stub(window.performance, 'getEntriesByType');
-  let entries = [{
+function mockPerformanceApi({ adServerCallSent, videoPresent }) {
+  const performanceStub = sandbox.stub(window.performance, 'getEntriesByType');
+  const entries = [{
     name: 'https://domain.com/img.png',
     initiatorType: 'img'
   }, {
@@ -63,7 +63,6 @@ function mockBidResponse(adUnit, requestId) {
     'bidderCode': adUnit.bids[0].bidder,
     'width': adUnit.sizes[0][0],
     'height': adUnit.sizes[0][1],
-    'statusMessage': 'Bid available',
     'adId': 'id',
     'requestId': requestId,
     'source': 'client',
@@ -105,26 +104,25 @@ function mockBidRequest(adUnit, bidResponse) {
 function getMockInput(mediaType) {
   const bannerAdUnit = {
     code: 'banner',
-    mediaTypes: {banner: {sizes: [[300, 250]]}},
+    mediaTypes: { banner: { sizes: [[300, 250]] } },
     sizes: [[300, 250]],
-    bids: [{bidder: BIDDER_CODE, params: {placementId: 'id'}}]
+    bids: [{ bidder: BIDDER_CODE, params: { placementId: 'id' } }]
   };
   const outStreamAdUnit = {
     code: 'video-' + OUTSTREAM,
-    mediaTypes: {video: {playerSize: [640, 480], context: OUTSTREAM}},
+    mediaTypes: { video: { playerSize: [640, 480], context: OUTSTREAM } },
     sizes: [[640, 480]],
-    bids: [{bidder: BIDDER_CODE, params: {placementId: 'id'}}]
+    bids: [{ bidder: BIDDER_CODE, params: { placementId: 'id' } }]
   };
   const inStreamAdUnit = {
     code: 'video-' + INSTREAM,
-    mediaTypes: {video: {playerSize: [640, 480], context: INSTREAM}},
+    mediaTypes: { video: { playerSize: [640, 480], context: INSTREAM } },
     sizes: [[640, 480]],
-    bids: [{bidder: BIDDER_CODE, params: {placementId: 'id'}}]
+    bids: [{ bidder: BIDDER_CODE, params: { placementId: 'id' } }]
   };
 
   let adUnit;
   switch (mediaType) {
-    default:
     case 'banner':
       adUnit = bannerAdUnit;
       break;
@@ -134,6 +132,7 @@ function getMockInput(mediaType) {
     case INSTREAM:
       adUnit = inStreamAdUnit;
       break;
+    default:
   }
 
   const bidResponse = mockBidResponse(adUnit, utils.getUniqueIdentifierStr());
@@ -148,7 +147,7 @@ function getMockInput(mediaType) {
 describe('Instream Tracking', function () {
   beforeEach(function () {
     sandbox = sinon.createSandbox();
-    clock = sandbox.useFakeTimers();
+    clock = sandbox.useFakeTimers({ shouldClearNativeTimers: true });
   });
 
   afterEach(function () {
@@ -168,7 +167,7 @@ describe('Instream Tracking', function () {
 
     it('run only if instream bids are present', function () {
       enableInstreamTracking();
-      assert.isNotOk(trackInstreamDeliveredImpressions({adUnits: [], bidsReceived: [], bidderRequests: []}));
+      assert.isNotOk(trackInstreamDeliveredImpressions({ adUnits: [], bidsReceived: [], bidderRequests: [] }));
     });
 
     it('checks for instream bids', function () {
@@ -198,7 +197,7 @@ describe('Instream Tracking', function () {
 
     it('BID WON event is not emitted when ad server call is sent', function () {
       enableInstreamTracking();
-      mockPerformanceApi({adServerCallSent: true});
+      mockPerformanceApi({ adServerCallSent: true });
       clock.tick(10);
       assert.isNotOk(spyEventsOn.calledWith('bidWon'));
     });
@@ -207,7 +206,7 @@ describe('Instream Tracking', function () {
       enableInstreamTracking(/cache/);
       const bidWonSpy = sandbox.spy();
       events.on('bidWon', bidWonSpy);
-      mockPerformanceApi({adServerCallSent: true, videoPresent: true});
+      mockPerformanceApi({ adServerCallSent: true, videoPresent: true });
 
       trackInstreamDeliveredImpressions(getMockInput(INSTREAM));
       clock.tick(10);

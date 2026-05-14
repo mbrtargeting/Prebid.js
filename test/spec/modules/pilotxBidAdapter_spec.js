@@ -83,6 +83,17 @@ describe('pilotxAdapter', function () {
       }
 
     }
+    const mockRequestgGPP = {
+      refererInfo: {},
+      gppConsent: {
+        gppString: 'DBABMA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA',
+        applicableSections: [7]
+      }
+    }
+    const mockRequestgUSP = {
+      refererInfo: {},
+      uspConsent: "1YNN"
+    }
     const mockVideo1 = [{
       adUnitCode: 'video1',
       auctionId: '01618029-7ae9-4e98-a73a-1ed0c817f414',
@@ -149,23 +160,36 @@ describe('pilotxAdapter', function () {
     }];
     it('should return correct response', function () {
       const builtRequest = spec.buildRequests(mockVideo1, mockRequest)
-      let builtRequestData = builtRequest.data
-      let data = JSON.parse(builtRequestData)
+      const builtRequestData = builtRequest.data
+      const data = JSON.parse(builtRequestData)
       expect(data['379'].bidId).to.equal(mockVideo1[0].bidId)
     });
     it('should return correct response for only array of size', function () {
       const builtRequest = spec.buildRequests(mockVideo2, mockRequest)
-      let builtRequestData = builtRequest.data
-      let data = JSON.parse(builtRequestData)
+      const builtRequestData = builtRequest.data
+      const data = JSON.parse(builtRequestData)
       expect(data['379'].sizes[0][0]).to.equal(mockVideo2[0].sizes[0])
       expect(data['379'].sizes[0][1]).to.equal(mockVideo2[0].sizes[1])
     });
     it('should be valid and pass gdpr items correctly', function () {
       const builtRequest = spec.buildRequests(mockVideo2, mockRequestGDPR)
-      let builtRequestData = builtRequest.data
-      let data = JSON.parse(builtRequestData)
+      const builtRequestData = builtRequest.data
+      const data = JSON.parse(builtRequestData)
       expect(data['379'].gdprConsentString).to.equal(mockRequestGDPR.gdprConsent.consentString)
       expect(data['379'].gdprConsentRequired).to.equal(mockRequestGDPR.gdprConsent.gdprApplies)
+    });
+    it('should be valid and pass gpp items correctly', function () {
+      const builtRequest = spec.buildRequests(mockVideo2, mockRequestgGPP)
+      const builtRequestData = builtRequest.data
+      const data = JSON.parse(builtRequestData)
+      expect(data['379'].gppString).to.equal(mockRequestgGPP.gppConsent.gppString)
+      expect(data['379'].gppApplicableSections).to.deep.equal(mockRequestgGPP.gppConsent.applicableSections)
+    });
+    it('should be valid and pass usp correctly', function () {
+      const builtRequest = spec.buildRequests(mockVideo2, mockRequestgUSP)
+      const builtRequestData = builtRequest.data
+      const data = JSON.parse(builtRequestData)
+      expect(data['379'].uspConsent).to.equal(mockRequestgUSP.uspConsent)
     });
   });
   describe('interpretResponse', function () {
