@@ -371,6 +371,10 @@ describe('stroeerCore bid adapter', function() {
     assert.equal(spec.gvlid, 136);
   });
 
+  it('should have alwaysHasCapacity set to true', function () {
+    assert.isTrue(spec.alwaysHasCapacity);
+  });
+
   describe('bid validation entry point', () => {
     let bidRequest;
 

@@ -152,6 +152,7 @@ export const spec = {
   code: BIDDER_CODE,
   gvlid: GVL_ID,
   supportedMediaTypes: [BANNER, VIDEO],
+  alwaysHasCapacity: true,
 
   isBidRequestValid: (function() {
     const validators = [];
