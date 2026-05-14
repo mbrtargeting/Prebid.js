@@ -125,7 +125,9 @@ function groupBy(array, keyFns) {
     let group = groups.find(group => keys.every(keyName => group.key[keyName] === keyFns[keyName](utils.deepAccess(element, keyName))));
     if (!group) {
       const key = {};
-      keys.forEach(name => key[name] = keyFns[name](utils.deepAccess(element, name)));
+      keys.forEach(name => {
+        key[name] = keyFns[name](utils.deepAccess(element, name));
+      });
       group = { key, values: [] };
       groups.push(group);
     }

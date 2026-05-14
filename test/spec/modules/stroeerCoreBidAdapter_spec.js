@@ -1,11 +1,11 @@
-import {assert} from 'chai';
-import {spec} from 'modules/stroeerCoreBidAdapter.js';
+import { assert } from 'chai';
+import { spec } from 'modules/stroeerCoreBidAdapter.js';
 import * as utils from 'src/utils.js';
-import {BANNER, VIDEO} from '../../../src/mediaTypes.js';
-import * as prebidGlobal from '../../../src/prebidGlobal';
+import { BANNER, VIDEO } from '../../../src/mediaTypes.ts';
+import * as prebidGlobal from '../../../src/prebidGlobal.ts';
 import sinon from 'sinon';
 import * as ajax from 'src/ajax.js';
-import {config} from '../../../src/config';
+import { config } from '../../../src/config.ts';
 
 describe('stroeerCore bid adapter', function() {
   let sandbox;
@@ -1478,8 +1478,8 @@ describe('stroeerCore bid adapter', function() {
             const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
             const [bid1, bid2] = serverRequestInfo.data.bids;
 
-            assert.deepEqual(bid1.ortb2Imp, {ext: {gpid: '/8292/homepage-top'}});
-            assert.deepEqual(bid2.ortb2Imp, {ext: {gpid: '/2231/bottom'}});
+            assert.deepEqual(bid1.ortb2Imp, { ext: { gpid: '/8292/homepage-top' } });
+            assert.deepEqual(bid2.ortb2Imp, { ext: { gpid: '/2231/bottom' } });
           });
         });
 
@@ -1523,7 +1523,7 @@ describe('stroeerCore bid adapter', function() {
           const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
 
           const sentOrtb2 = serverRequestInfo.data.ortb2;
-          assert.deepEqual(sentOrtb2, {site: {ext: ortb2.site.ext}})
+          assert.deepEqual(sentOrtb2, { site: { ext: ortb2.site.ext } })
         });
       });
 
@@ -1758,7 +1758,7 @@ describe('stroeerCore bid adapter', function() {
         },
       });
 
-      const result = spec.interpretResponse({body: response});
+      const result = spec.interpretResponse({ body: response });
 
       const firstBidMeta = result[0].meta;
       assert.deepPropertyVal(firstBidMeta, 'advertiserDomains', ['website.org', 'domain.com']);
@@ -1781,7 +1781,7 @@ describe('stroeerCore bid adapter', function() {
         rb: utils.deepClone(rbResponse),
       });
 
-      const result = spec.interpretResponse({body: response});
+      const result = spec.interpretResponse({ body: response });
       assert.deepPropertyVal(result[0], 'rb', rbResponse);
       assert.isUndefined(result[1].rb);
     });
@@ -2123,7 +2123,7 @@ describe('stroeerCore bid adapter', function() {
         },
         { price: '1234.56789', expectation: '1234.567' }, { price: '12345.1234', expectation: '12345.12' },
         { price: '123456.10', expectation: '123456.1' }, { price: '123456.105', expectation: '123456.1' },
-        { price: '1234567.0052', expectation: '1234567' }, ];
+        { price: '1234567.0052', expectation: '1234567' },];
         validPrices.forEach(test => {
           it(`should safely truncate ${test.price} to ${test.expectation}`, () => {
             const bidderResponse = buildBidderResponse();
