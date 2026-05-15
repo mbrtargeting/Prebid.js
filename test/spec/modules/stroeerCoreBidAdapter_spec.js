@@ -1153,29 +1153,6 @@ describe('stroeerCore bid adapter', function() {
           assert.deepEqual(serverRequestInfo.data.user.euids, userIds);
         });
 
-        it('should add schain if available', () => {
-          const schain = Object.freeze({
-            ver: '1.0',
-            complete: 1,
-            'nodes': [
-              {
-                asi: 'exchange1.com',
-                sid: 'ABC',
-                hp: 1,
-                rid: 'bid-request-1',
-                name: 'publisher',
-                domain: 'publisher.com'
-              }
-            ]
-          });
-
-          const bidReq = buildBidderRequest();
-          bidReq.bids.forEach(bid => bid.schain = schain);
-
-          const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
-          assert.deepEqual(serverRequestInfo.data.schain, schain);
-        });
-
         it('should add floor info to banner bid request if floor is available', () => {
           const bidReq = buildBidderRequest();
 
@@ -1452,6 +1429,38 @@ describe('stroeerCore bid adapter', function() {
             const sentOrtb2 = serverRequestInfo.data.ortb2;
 
             assert.equal(sentOrtb2.device.ifa, ifa);
+          });
+
+          it('should add the schain', () => {
+            const schain = {
+              ver: '1.0',
+              complete: 1,
+              'nodes': [
+                {
+                  asi: 'exchange1.com',
+                  sid: 'ABC',
+                  hp: 1,
+                  rid: 'bid-request-1',
+                  name: 'publisher',
+                  domain: 'publisher.com'
+                }
+              ]
+            };
+
+            const bidReq = buildBidderRequest();
+
+            const ortb2 = {
+              source: {
+                ext: {
+                  schain
+                }
+              }
+            };
+
+            bidReq.ortb2 = utils.deepClone(ortb2);
+
+            const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
+            assert.deepEqual(serverRequestInfo.data.schain, schain);
           });
         });
 

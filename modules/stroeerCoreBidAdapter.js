@@ -5,6 +5,7 @@ import * as utils from '../src/utils.js'
 import { getGlobal } from '../src/prebidGlobal.js'
 import { config } from '../src/config.js'
 import { getBoundingClientRect } from '../libraries/boundingClientRect/boundingClientRect.js';
+import { deepAccess } from '../src/utils.js';
 
 const GVL_ID = 136;
 const BIDDER_CODE = 'stroeerCore';
@@ -205,7 +206,7 @@ export const spec = {
       ab: win['yieldlove_ab'],
       kvg: getGlobalKeyValues(),
       url: refererInfo.page,
-      schain: anyBid.schain
+      schain: deepAccess(bidderRequest, 'ortb2.source.ext.schain'),
     };
 
     const user = utils.cleanObj({
