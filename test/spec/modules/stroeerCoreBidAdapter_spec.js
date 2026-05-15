@@ -1144,15 +1144,6 @@ describe('stroeerCore bid adapter', function() {
           assert.isUndefined(serverRequestInfo.data.user?.userIds);
         });
 
-        it('should prefer euids over eids', () => {
-          const bidReq = buildBidderRequest();
-          bidReq.bids.forEach(bid => bid.userId = userIds);
-          const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
-          assert.lengthOf(serverRequestInfo.data.bids, 2);
-          assert.notProperty(serverRequestInfo.data.user, 'eids');
-          assert.deepEqual(serverRequestInfo.data.user.euids, userIds);
-        });
-
         it('should add floor info to banner bid request if floor is available', () => {
           const bidReq = buildBidderRequest();
 

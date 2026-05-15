@@ -211,9 +211,7 @@ export const spec = {
 
     const user = utils.cleanObj({
       data: utils.deepAccess(bidderRequest, 'ortb2.user.data'),
-      // userId is deprecated in v9, removed in v10. Yet prefer v9's userId (euids) over v10's userIdAsEids (eids).
-      euids: anyBid.userId,
-      eids: anyBid.userId ? undefined : anyBid.userIdAsEids,
+      eids: anyBid.userIdAsEids,
     });
 
     if (!utils.isEmpty(user)) {
