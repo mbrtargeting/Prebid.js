@@ -1,11 +1,23 @@
+import {
+  buildUrl,
+  cleanObj,
+  deepAccess,
+  deepSetValue,
+  generateUUID,
+  getWindowSelf,
+  getWindowTop,
+  insertElement,
+  isEmpty,
+  isPlainObject,
+  isStr,
+  logWarn
+} from '../src/utils.js';
 import { registerBidder } from '../src/adapters/bidderFactory.js'
 import { ajax } from '../src/ajax.js'
 import { BANNER, VIDEO } from '../src/mediaTypes.js'
-import * as utils from '../src/utils.js'
 import { getGlobal } from '../src/prebidGlobal.js'
 import { config } from '../src/config.js'
 import { getBoundingClientRect } from '../libraries/boundingClientRect/boundingClientRect.js';
-import { deepAccess } from '../src/utils.js';
 
 const GVL_ID = 136;
 const BIDDER_CODE = 'stroeerCore';
@@ -17,13 +29,13 @@ const DEFAULT_PROTOCOL = 'https';
 const _externalCrypter = new Crypter('c2xzRWh5NXhpZmxndTRxYWZjY2NqZGNhTW1uZGZya3Y=', 'eWRpdkFoa2tub3p5b2dscGttamIySGhkZ21jcmg0Znk=');
 const _internalCrypter = new Crypter('1AE180CBC19A8CFEB7E1FCC000A10F5D892A887A2D9=', '0379698055BD41FD05AC543A3AAAD6589BC6E1B3626=');
 
-const isMainPageAccessible = () => getMostAccessibleTopWindow() === utils.getWindowTop();
+const isMainPageAccessible = () => getMostAccessibleTopWindow() === getWindowTop();
 
 function getStroeerCore() {
-  let win = utils.getWindowSelf();
+  let win = getWindowSelf();
 
   try {
-    while (!win.stroeerCore && utils.getWindowTop() !== win && win.parent.location.href.length) {
+    while (!win.stroeerCore && getWindowTop() !== win && win.parent.location.href.length) {
       win = win.parent;
     }
   } catch (ignore) {
@@ -34,10 +46,10 @@ function getStroeerCore() {
 }
 
 function getMostAccessibleTopWindow() {
-  let res = utils.getWindowSelf();
+  let res = getWindowSelf();
 
   try {
-    while (utils.getWindowTop().top !== res && res.parent.location.href.length) {
+    while (getWindowTop().top !== res && res.parent.location.href.length) {
       res = res.parent;
     }
   } catch (ignore) {
@@ -49,7 +61,7 @@ function getMostAccessibleTopWindow() {
 function elementInView(elementId) {
   const resolveElement = (elId) => {
     let slotInfo;
-    let win = utils.getWindowSelf();
+    let win = getWindowSelf();
     if (win.SDG && (slotInfo = win.SDG.Wrapper.getSlotByName(elId)) !== null) {
       return slotInfo.containerNode;
     } else {
@@ -69,15 +81,15 @@ function elementInView(elementId) {
   };
 
   try {
-    return visibleInWindow(resolveElement(elementId), utils.getWindowSelf());
+    return visibleInWindow(resolveElement(elementId), getWindowSelf());
   } catch (e) {
     // old browser, element not found, cross-origin etc.
   }
   return undefined;
 }
 
-function buildUrl({ host: hostname = DEFAULT_HOST, port = DEFAULT_PORT, path: pathname = DEFAULT_PATH, protocol = DEFAULT_PROTOCOL }) {
-  return utils.buildUrl({ protocol, hostname, port, pathname });
+function buildEndpointUrl({ host: hostname = DEFAULT_HOST, port = DEFAULT_PORT, path: pathname = DEFAULT_PATH, protocol = DEFAULT_PROTOCOL }) {
+  return buildUrl({ protocol, hostname, port, pathname });
 }
 
 function setupGlobalNamespace(anyBid) {
@@ -102,7 +114,7 @@ function initUserConnect() {
 
   scriptElement.src = userConnectJsUrl;
 
-  utils.insertElement(scriptElement);
+  insertElement(scriptElement);
 }
 
 function hasBanner(bidReq) {
@@ -123,11 +135,11 @@ function groupBy(array, keyFns) {
   const groups = [];
 
   array.forEach(element => {
-    let group = groups.find(group => keys.every(keyName => group.key[keyName] === keyFns[keyName](utils.deepAccess(element, keyName))));
+    let group = groups.find(group => keys.every(keyName => group.key[keyName] === keyFns[keyName](deepAccess(element, keyName))));
     if (!group) {
       const key = {};
       keys.forEach(name => {
-        key[name] = keyFns[name](utils.deepAccess(element, name));
+        key[name] = keyFns[name](deepAccess(element, name));
       });
       group = { key, values: [] };
       groups.push(group);
@@ -165,7 +177,7 @@ export const spec = {
         if (checkFn(bidRequest)) {
           return true;
         } else {
-          utils.logWarn(`${BIDDER_CODE}: Bid setup for ${bidRequest.adUnitCode} is invalid: ${msg}`);
+          logWarn(`${BIDDER_CODE}: Bid setup for ${bidRequest.adUnitCode} is invalid: ${msg}`);
           return false;
         }
       }
@@ -179,7 +191,7 @@ export const spec = {
       'the media type is invalid'));
     validators.push(createValidator((bidReq) => typeof bidReq.params === 'object',
       'the custom params does not exist'));
-    validators.push(createValidator((bidReq) => utils.isStr(bidReq.params.sid),
+    validators.push(createValidator((bidReq) => isStr(bidReq.params.sid),
       'the sid field must be a string'));
     validators.push(createValidator((bidReq) => bidReq.params.ssat === undefined || [1, 2].indexOf(bidReq.params.ssat) > -1,
       'the ssat field is invalid (must be 1 or 2)'));
@@ -191,14 +203,14 @@ export const spec = {
 
   buildRequests: function(validBidRequests = [], bidderRequest) {
     const anyBid = bidderRequest.bids[0];
-    const win = utils.getWindowSelf();
+    const win = getWindowSelf();
 
     setupGlobalNamespace(anyBid);
 
     const refererInfo = bidderRequest.refererInfo;
 
     const commonPayload = {
-      id: utils.generateUUID(),
+      id: generateUUID(),
       ref: refererInfo.ref,
       mpa: isMainPageAccessible(),
       ver: getVersionValues(win),
@@ -209,12 +221,12 @@ export const spec = {
       schain: deepAccess(bidderRequest, 'ortb2.source.ext.schain'),
     };
 
-    const user = utils.cleanObj({
-      data: utils.deepAccess(bidderRequest, 'ortb2.user.data'),
+    const user = cleanObj({
+      data: deepAccess(bidderRequest, 'ortb2.user.data'),
       eids: anyBid.userIdAsEids,
     });
 
-    if (!utils.isEmpty(user)) {
+    if (!isEmpty(user)) {
       commonPayload.user = user;
     }
 
@@ -230,7 +242,7 @@ export const spec = {
     copyDeepPaths(commonPayload, bidderRequest.ortb2, ORTB2_PATHS, 'ortb2');
 
     const serverRequestInfos = [];
-    const endpointUrl = buildUrl(anyBid.params);
+    const endpointUrl = buildEndpointUrl(anyBid.params);
 
     addServerRequestInfos(hasBanner, bidRequest => ({ ban: createBannerObject(bidRequest) }));
     addServerRequestInfos(hasVideo, bidRequest => ({ vid: createVideoObject(bidRequest) }));
@@ -289,11 +301,11 @@ export const spec = {
     }
 
     function bannerBidSizes(bid) {
-      return utils.deepAccess(bid, 'mediaTypes.banner.sizes') || bid.sizes /* for prebid < 3 */ || [];
+      return deepAccess(bid, 'mediaTypes.banner.sizes') || bid.sizes /* for prebid < 3 */ || [];
     }
 
     function createVideoObject(bidRequest) {
-      const video = utils.deepAccess(bidRequest, 'mediaTypes.video') || {};
+      const video = deepAccess(bidRequest, 'mediaTypes.video') || {};
       return {
         ctx: video.context,
         siz: video.playerSize,
@@ -379,7 +391,7 @@ export const spec = {
 
     function getGlobalKeyValues() {
       const kvgConfig = config.getConfig('kvg');
-      const configKeyValues = utils.isPlainObject(kvgConfig) ? getValidKeyValues(kvgConfig) : {};
+      const configKeyValues = isPlainObject(kvgConfig) ? getValidKeyValues(kvgConfig) : {};
       let metaTagKeyValues = {};
 
       try {
@@ -409,13 +421,13 @@ export const spec = {
 
     function copyDeepPaths(target, source, paths, targetPrefix = '') {
       paths.forEach(path => {
-        const value = utils.deepAccess(source, path);
+        const value = deepAccess(source, path);
         if (value !== undefined) {
           const targetPath = targetPrefix
             ? `${targetPrefix}.${path}`
             : path;
 
-          utils.deepSetValue(target, targetPath, value);
+          deepSetValue(target, targetPath, value);
         }
       });
     }
@@ -543,7 +555,7 @@ function tunePrice(price) {
     else throwError();
 
     const newPrice = integerPart + (fractionalPart.length > 0 ? '.' + fractionalPart : '');
-    utils.logWarn(`truncated price ${price} to ${newPrice} to fit into 8 bytes`);
+    logWarn(`truncated price ${price} to ${newPrice} to fit into 8 bytes`);
     return newPrice;
   }
 
