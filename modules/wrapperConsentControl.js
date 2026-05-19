@@ -24,17 +24,12 @@ config.mergeConfig({
  * Provides standardized consent checking for Yieldlove (vendor ID 251)
  */
 export const getStorageManagerPromise = new Promise((resolve) => {
-  window.yieldlove_tc = window.yieldlove_tc || [];
-  // Queue the storage manager creation for when CMP is ready
-  window.yieldlove_tc.push(() => {
-    const storageManager = getStorageManager({
-      moduleType: MODULE_TYPE_BIDDER,
-      moduleName: WRAPPER_MODULE_NAME
-    });
-    logInfo('[WrapperConsentControl] Storage manager created with consent enforcement')
-
-    resolve(storageManager)
+  const storageManager = getStorageManager({
+    moduleType: MODULE_TYPE_BIDDER,
+    moduleName: WRAPPER_MODULE_NAME
   });
+  logInfo('[WrapperConsentControl] Storage manager created with consent enforcement')
+  resolve(storageManager)
 })
 
 // Make WrapperConsentControl available globally for wrapper components
