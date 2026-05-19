@@ -4714,6 +4714,13 @@
     },
     {
       "componentType": "bidder",
+      "componentName": "yieldloveTest",
+      "aliasOf": null,
+      "gvlid": 136,
+      "disclosureURL": null
+    },
+    {
+      "componentType": "bidder",
       "componentName": "stv",
       "aliasOf": null,
       "gvlid": 134,
