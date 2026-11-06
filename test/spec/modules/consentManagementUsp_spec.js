@@ -4,15 +4,16 @@ import {
   resetConsentData,
   consentAPI,
   consentTimeout,
-  staticConsentData
+  staticConsentData,
+  _internal
 } from 'modules/consentManagementUsp.js';
 import * as utils from 'src/utils.js';
 import { config } from 'src/config.js';
-import adapterManager, {gdprDataHandler, uspDataHandler} from 'src/adapterManager.js';
-import 'src/prebid.js';
-import {defer} from '../../../src/utils/promise.js';
+import adapterManager, { uspDataHandler } from 'src/adapterManager.js';
+import { requestBids } from '../../../src/prebid.js';
+import { defer } from '../../../src/utils/promise.js';
 
-let expect = require('chai').expect;
+const expect = require('chai').expect;
 
 function createIFrameMarker() {
   var ifr = document.createElement('iframe');
@@ -32,6 +33,7 @@ describe('consentManagement', function () {
 
   afterEach(() => {
     sandbox.restore();
+    _internal.resetDeletionRequestRegistration();
   });
 
   it('should enable itself on requestBids using default values', (done) => {
@@ -53,7 +55,7 @@ describe('consentManagement', function () {
       }
     });
     expect(uspDataHandler.getConsentData()).to.equal('1YYY');
-  })
+  });
 
   describe('setConsentConfig tests:', function () {
     describe('empty setConsentConfig value', function () {
@@ -79,7 +81,7 @@ describe('consentManagement', function () {
       });
 
       it('should use system default values', function () {
-        setConsentConfig({usp: {}});
+        setConsentConfig({ usp: {} });
         expect(consentAPI).to.be.equal('iab');
         expect(consentTimeout).to.be.equal(50);
         sinon.assert.callCount(utils.logInfo, 3);
@@ -94,7 +96,7 @@ describe('consentManagement', function () {
 
       it('should not produce any USP metadata', function() {
         setConsentConfig({});
-        let consentMeta = uspDataHandler.getConsentMeta();
+        const consentMeta = uspDataHandler.getConsentMeta();
         expect(consentMeta).to.be.undefined;
       });
 
@@ -113,7 +115,7 @@ describe('consentManagement', function () {
       });
 
       it('should immediately start looking up consent data', () => {
-        setConsentConfig({usp: {cmpApi: 'invalid'}});
+        setConsentConfig({ usp: { cmpApi: 'invalid' } });
         expect(uspDataHandler.ready).to.be.true;
       });
     });
@@ -121,11 +123,11 @@ describe('consentManagement', function () {
     describe('valid setConsentConfig value', function () {
       afterEach(function () {
         config.resetConfig();
-        $$PREBID_GLOBAL$$.requestBids.removeAll();
+        requestBids.removeAll();
       });
 
       it('results in all user settings overriding system defaults', function () {
-        let allConfig = {
+        const allConfig = {
           usp: {
             cmpApi: 'daa',
             timeout: 7500
@@ -138,12 +140,12 @@ describe('consentManagement', function () {
       });
 
       it('should enable uspDataHandler', () => {
-        setConsentConfig({usp: {cmpApi: 'daa', timeout: 7500}});
+        setConsentConfig({ usp: { cmpApi: 'daa', timeout: 7500 } });
         expect(uspDataHandler.enabled).to.be.true;
       });
 
       it('should call setConsentData(null) on invalid CMP api', () => {
-        setConsentConfig({usp: {cmpApi: 'invalid'}});
+        setConsentConfig({ usp: { cmpApi: 'invalid' } });
         let hookRan = false;
         requestBidsHook(() => {
           hookRan = true;
@@ -156,10 +158,10 @@ describe('consentManagement', function () {
     describe('static consent string setConsentConfig value', () => {
       afterEach(() => {
         config.resetConfig();
-        $$PREBID_GLOBAL$$.requestBids.removeAll();
+        requestBids.removeAll();
       });
       it('results in user settings overriding system defaults', () => {
-        let staticConfig = {
+        const staticConfig = {
           usp: {
             cmpApi: 'static',
             timeout: 7500,
@@ -174,21 +176,21 @@ describe('consentManagement', function () {
         setConsentConfig(staticConfig);
         expect(consentAPI).to.be.equal('static');
         expect(consentTimeout).to.be.equal(0); // should always return without a timeout when config is used
-        expect(uspDataHandler.getConsentData()).to.eql(staticConfig.usp.consentData.getUSPData.uspString)
+        expect(uspDataHandler.getConsentData()).to.eql(staticConfig.usp.consentData.getUSPData.uspString);
         expect(staticConsentData.usPrivacy).to.be.equal(staticConfig.usp.consentData.getUSPData.uspString);
       });
     });
   });
 
   describe('requestBidsHook tests:', function () {
-    let goodConfig = {
+    const goodConfig = {
       usp: {
         cmpApi: 'iab',
         timeout: 7500
       }
     };
 
-    let noConfig = {};
+    const noConfig = {};
 
     let didHookReturn;
 
@@ -208,16 +210,16 @@ describe('consentManagement', function () {
         utils.logWarn.restore();
         utils.logError.restore();
         config.resetConfig();
-        $$PREBID_GLOBAL$$.requestBids.removeAll();
+        requestBids.removeAll();
         resetConsentData();
       });
 
       it('should throw a warning and return to hooked function when an unknown USPAPI framework ID is used', function () {
-        let badCMPConfig = { usp: { cmpApi: 'bad' } };
+        const badCMPConfig = { usp: { cmpApi: 'bad' } };
         setConsentConfig(badCMPConfig);
         expect(consentAPI).to.be.equal(badCMPConfig.usp.cmpApi);
         requestBidsHook(() => { didHookReturn = true; }, {});
-        let consent = uspDataHandler.getConsentData();
+        const consent = uspDataHandler.getConsentData();
         sinon.assert.calledOnce(utils.logWarn);
         expect(didHookReturn).to.be.true;
         expect(consent).to.be.null;
@@ -226,11 +228,98 @@ describe('consentManagement', function () {
       it('should throw proper errors when USP config is not found', function () {
         setConsentConfig(noConfig);
         requestBidsHook(() => { didHookReturn = true; }, {});
-        let consent = uspDataHandler.getConsentData();
+        const consent = uspDataHandler.getConsentData();
         // throw 2 warnings; one for no bidsBackHandler and for CMP not being found (this is an error due to gdpr config)
         sinon.assert.calledTwice(utils.logWarn);
         expect(didHookReturn).to.be.true;
         expect(consent).to.be.null;
+      });
+    });
+
+    describe('waitForCmp:', function () {
+      let lateCmpTimer;
+      afterEach(function () {
+        clearTimeout(lateCmpTimer);
+        config.resetConfig();
+        requestBids.removeAll();
+        delete window.__uspapi;
+        resetConsentData();
+      });
+
+      function cmpAppearsAfter(ms, cmp = (...args) => args[2]({ uspString: '1YYY' }, true)) {
+        lateCmpTimer = setTimeout(() => {
+          window.__uspapi = cmp;
+        }, ms);
+      }
+
+      it('should wait for a late CMP when configured', (done) => {
+        setConsentConfig({ usp: { cmpApi: 'iab', timeout: 500, waitForCmp: true } });
+        cmpAppearsAfter(10);
+        requestBidsHook(() => {
+          expect(uspDataHandler.getConsentData()).to.equal('1YYY');
+          done();
+        }, {});
+      });
+
+      it('should not wait for a late CMP by default', (done) => {
+        setConsentConfig({ usp: { cmpApi: 'iab', timeout: 20 } });
+        cmpAppearsAfter(10);
+        requestBidsHook(() => {
+          expect(uspDataHandler.getConsentData()).to.equal(null);
+          done();
+        }, {});
+      });
+
+      it('should stop looking for a late CMP once the timeout expires', (done) => {
+        const lateCmp = sinon.stub();
+        setConsentConfig({ usp: { cmpApi: 'iab', timeout: 20, waitForCmp: true } });
+        cmpAppearsAfter(50, lateCmp);
+        requestBidsHook(() => {
+          expect(uspDataHandler.getConsentData()).to.equal(null);
+          setTimeout(() => {
+            sinon.assert.notCalled(lateCmp);
+            done();
+          }, 200);
+        }, {});
+      });
+
+      it('should resume the auction only once, but keep consent, when the CMP replies after the timeout', (done) => {
+        let callCount = 0;
+        window.__uspapi = (...args) => setTimeout(() => args[2]({ uspString: '1YYY' }, true), 100);
+        setConsentConfig({ usp: { cmpApi: 'iab', timeout: 50 } });
+        requestBidsHook(() => {
+          callCount++;
+          expect(uspDataHandler.getConsentData()).to.equal(null);
+        }, {});
+        setTimeout(() => {
+          expect(callCount).to.equal(1);
+          expect(uspDataHandler.getConsentData()).to.equal('1YYY');
+          done();
+        }, 150);
+      });
+    });
+
+    describe('when reconfigured while an auction waits for the CMP to reply', function () {
+      afterEach(function () {
+        config.resetConfig();
+        requestBids.removeAll();
+        delete window.__uspapi;
+        resetConsentData();
+      });
+
+      it('should keep the auction waiting for consent', (done) => {
+        window.__uspapi = (command, version, callback) => {
+          if (command === 'getUSPData') {
+            setTimeout(() => callback({ uspString: '1YNN' }, true), 30);
+          }
+        };
+        const cmConfig = { usp: { cmpApi: 'iab', timeout: 500 } };
+        setConsentConfig(cmConfig);
+        requestBidsHook(() => {
+          expect(uspDataHandler.getConsentData()).to.equal('1YNN');
+          done();
+        }, {});
+        setConsentConfig(cmConfig);
       });
     });
 
@@ -246,7 +335,7 @@ describe('consentManagement', function () {
 
       afterEach(function () {
         config.resetConfig();
-        $$PREBID_GLOBAL$$.requestBids.removeAll();
+        requestBids.removeAll();
         uspStub.restore();
         document.body.removeChild(ifr);
         delete window.__uspapi;
@@ -257,7 +346,7 @@ describe('consentManagement', function () {
       // Because the USP API does not wait for a user response, if it was not successfully obtained before the first auction, we should try again to retrieve privacy data before each subsequent auction.
 
       it('should not bypass CMP and simply use previously stored consentData', function () {
-        let testConsentData = {
+        const testConsentData = {
           uspString: '1YY'
         };
 
@@ -276,7 +365,7 @@ describe('consentManagement', function () {
 
         requestBidsHook(() => { didHookReturn = true; }, {});
 
-        let consent = uspDataHandler.getConsentData();
+        const consent = uspDataHandler.getConsentData();
         expect(didHookReturn).to.be.true;
         expect(consent).to.equal(testConsentData.uspString);
         sinon.assert.called(uspStub);
@@ -296,7 +385,7 @@ describe('consentManagement', function () {
       });
 
       it('should call uspDataHandler.setConsentData(null) on timeout', (done) => {
-        setConsentConfig({usp: {timeout: 10}});
+        setConsentConfig({ usp: { timeout: 10 } });
         let hookRan = false;
         uspStub = sinon.stub(window, '__uspapi').callsFake(() => {});
         requestBidsHook(() => { hookRan = true; }, {});
@@ -305,13 +394,12 @@ describe('consentManagement', function () {
           expect(uspDataHandler.ready).to.be.true;
           expect(uspDataHandler.getConsentData()).to.equal(null);
           done();
-        }, 20)
+        }, 20);
       });
     });
 
     describe('USPAPI workflow for iframed page', function () {
       let ifr = null;
-      let stringifyResponse = false;
       let mockApi, replySent;
 
       beforeEach(function () {
@@ -325,7 +413,7 @@ describe('consentManagement', function () {
 
       afterEach(function () {
         config.resetConfig();
-        $$PREBID_GLOBAL$$.requestBids.removeAll();
+        requestBids.removeAll();
         delete window.__uspapi;
         utils.logError.restore();
         utils.logWarn.restore();
@@ -338,7 +426,7 @@ describe('consentManagement', function () {
         if (event && event.data) {
           const data = event.data;
           if (data.__uspapiCall) {
-            const {command, version, callId} = data.__uspapiCall;
+            const { command, version, callId } = data.__uspapiCall;
             let response = mockApi(command, version, callId);
             if (response) {
               response = {
@@ -347,30 +435,27 @@ describe('consentManagement', function () {
                   returnValue: response,
                   success: true
                 }
-              }
-              event.source.postMessage(stringifyResponse ? JSON.stringify(response) : response, '*');
+              };
+              event.source.postMessage(response, '*');
               replySent.resolve();
             }
           }
         }
       }
 
-      // Run tests with JSON response and String response
-      // from CMP window postMessage listener.
-      testIFramedPage('with/JSON response', false);
-      // testIFramedPage('with/String response', true);
+      // Run tests with JSON response from CMP window postMessage listener.
+      testIFramedPage('with/JSON response');
 
-      function testIFramedPage(testName, messageFormatString) {
+      function testIFramedPage(testName) {
         it(`should return the consent string from a postmessage + addEventListener response - ${testName}`, (done) => {
-          stringifyResponse = messageFormatString;
           mockApi.callsFake((cmd) => {
             if (cmd === 'getUSPData') {
-              return { uspString: '1YY' }
+              return { uspString: '1YY' };
             }
-          })
+          });
           setConsentConfig(goodConfig);
           requestBidsHook(() => {
-            let consent = uspDataHandler.getConsentData();
+            const consent = uspDataHandler.getConsentData();
             sinon.assert.notCalled(utils.logWarn);
             sinon.assert.notCalled(utils.logError);
             expect(consent).to.equal('1YY');
@@ -381,16 +466,16 @@ describe('consentManagement', function () {
 
       it('fires deletion request on registerDeletion', (done) => {
         mockApi.callsFake((cmd) => {
-          return cmd === 'registerDeletion'
-        })
+          return cmd === 'registerDeletion';
+        });
         sinon.assert.notCalled(adapterManager.callDataDeletionRequest);
         setConsentConfig(goodConfig);
         replySent.promise.then(() => {
           setTimeout(() => { // defer again to give time for the message to get through
             sinon.assert.calledOnce(adapterManager.callDataDeletionRequest);
-            done()
-          }, 200)
-        })
+            done();
+          }, 200);
+        });
       });
     });
 
@@ -406,7 +491,7 @@ describe('consentManagement', function () {
 
       afterEach(function () {
         config.resetConfig();
-        $$PREBID_GLOBAL$$.requestBids.removeAll();
+        requestBids.removeAll();
         uspapiStub.restore();
         utils.logError.restore();
         utils.logWarn.restore();
@@ -415,7 +500,7 @@ describe('consentManagement', function () {
       });
 
       it('Workflow for normal page withoout iframe locater', function() {
-        let testConsentData = {
+        const testConsentData = {
           uspString: '1NY'
         };
 
@@ -426,7 +511,7 @@ describe('consentManagement', function () {
         setConsentConfig(goodConfig);
         requestBidsHook(() => { didHookReturn = true; }, {});
 
-        let consent = uspDataHandler.getConsentData();
+        const consent = uspDataHandler.getConsentData();
 
         sinon.assert.notCalled(utils.logWarn);
         sinon.assert.notCalled(utils.logError);
@@ -449,7 +534,7 @@ describe('consentManagement', function () {
 
       afterEach(function () {
         config.resetConfig();
-        $$PREBID_GLOBAL$$.requestBids.removeAll();
+        requestBids.removeAll();
         sandbox.restore();
         document.body.removeChild(ifr);
         delete window.__uspapi;
@@ -457,7 +542,7 @@ describe('consentManagement', function () {
       });
 
       it('performs lookup check and stores consentData for a valid existing user', function () {
-        let testConsentData = {
+        const testConsentData = {
           uspString: '1NY'
         };
 
@@ -468,7 +553,7 @@ describe('consentManagement', function () {
         setConsentConfig(goodConfig);
         requestBidsHook(() => { didHookReturn = true; }, {});
 
-        let consent = uspDataHandler.getConsentData();
+        const consent = uspDataHandler.getConsentData();
 
         sinon.assert.notCalled(utils.logWarn);
         sinon.assert.notCalled(utils.logError);
@@ -477,8 +562,21 @@ describe('consentManagement', function () {
         expect(consent).to.equal(testConsentData.uspString);
       });
 
+      it('uses consent from a CMP that replies synchronously when timeout is 0', function () {
+        sandbox.stub(window, '__uspapi').callsFake((...args) => {
+          args[2]({ uspString: '1NY' }, true);
+        });
+
+        setConsentConfig({ usp: { cmpApi: 'iab', timeout: 0 } });
+        requestBidsHook(() => { didHookReturn = true; }, {});
+
+        expect(didHookReturn).to.be.true;
+        sinon.assert.notCalled(utils.logWarn);
+        expect(uspDataHandler.getConsentData()).to.equal('1NY');
+      });
+
       it('returns USP consent metadata', function () {
-        let testConsentData = {
+        const testConsentData = {
           uspString: '1NY'
         };
 
@@ -489,7 +587,7 @@ describe('consentManagement', function () {
         setConsentConfig(goodConfig);
         requestBidsHook(() => { didHookReturn = true; }, {});
 
-        let consentMeta = uspDataHandler.getConsentMeta();
+        const consentMeta = uspDataHandler.getConsentMeta();
 
         sinon.assert.notCalled(utils.logWarn);
         sinon.assert.notCalled(utils.logError);
@@ -510,12 +608,33 @@ describe('consentManagement', function () {
         sinon.assert.calledOnce(adapterManager.callDataDeletionRequest);
       });
 
+      it('registers deletion request event listener only once across consent lookups and resets', () => {
+        let listener;
+        const uspapiStub = sandbox.stub(window, '__uspapi').callsFake((cmd, _, cb) => {
+          if (cmd === 'registerDeletion') {
+            listener = cb;
+          } else if (cmd === 'getUSPData') {
+            cb({ uspString: 'string' }, true);
+          }
+        });
+
+        setConsentConfig(goodConfig);
+        requestBidsHook(() => {}, {});
+        resetConsentData();
+        setConsentConfig(goodConfig);
+        requestBidsHook(() => {}, {});
+
+        expect(uspapiStub.getCalls().filter(call => call.args[0] === 'registerDeletion')).to.have.length(1);
+        listener();
+        sinon.assert.calledOnce(adapterManager.callDataDeletionRequest);
+      });
+
       it('does not fail if CMP does not support registerDeletion', () => {
         sandbox.stub(window, '__uspapi').callsFake((cmd, _, cb) => {
           if (cmd === 'registerDeletion') {
             throw new Error('CMP not compliant');
           } else if (cmd === 'getUSPData') {
-            cb({uspString: 'string'}, true);
+            cb({ uspString: 'string' }, true);
           }
         });
         setConsentConfig(goodConfig);
@@ -527,12 +646,12 @@ describe('consentManagement', function () {
           if (cmd === 'registerDeletion') {
             cb(null, false);
           } else {
-            cb({uspString: 'string'}, true);
+            cb({ uspString: 'string' }, true);
           }
         });
         setConsentConfig(goodConfig);
         sinon.assert.notCalled(adapterManager.callDataDeletionRequest);
-      })
+      });
     });
   });
 });

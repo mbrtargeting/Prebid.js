@@ -2,14 +2,14 @@ import sinon from 'sinon';
 import {
   mobkoiIdSubmodule,
   storage,
-  PROD_AD_SERVER_BASE_URL,
+  PROD_PREBID_JS_INTEGRATION_BASE_URL,
   EQUATIV_NETWORK_ID,
   utils as mobkoiUtils
 } from 'modules/mobkoiIdSystem';
 import * as prebidUtils from 'src/utils';
 
 const TEST_SAS_ID = 'test-sas-id';
-const TEST_AD_SERVER_BASE_URL = 'https://mocha.test.adserver.com';
+const TEST_INTEGRATION_ENDPOINT = 'https://mocha.test.integration.com';
 const TEST_CONSENT_STRING = 'test-consent-string';
 
 function decodeFullUrl(url) {
@@ -20,15 +20,13 @@ describe('mobkoiIdSystem', function () {
   let sandbox,
     getCookieStub,
     setCookieStub,
-    cookiesAreEnabledStub,
-    insertUserSyncIframeStub;
+    cookiesAreEnabledStub;
 
   beforeEach(function () {
     sandbox = sinon.createSandbox();
     sandbox.stub(prebidUtils, 'logInfo');
     sandbox.stub(prebidUtils, 'logError');
 
-    insertUserSyncIframeStub = sandbox.stub(prebidUtils, 'insertUserSyncIframe');
     getCookieStub = sandbox.stub(storage, 'getCookie');
     setCookieStub = sandbox.stub(storage, 'setCookie');
     cookiesAreEnabledStub = sandbox.stub(storage, 'cookiesAreEnabled');
@@ -107,40 +105,99 @@ describe('mobkoiIdSystem', function () {
       buildEquativPixelUrlStub = sandbox.stub(mobkoiUtils, 'buildEquativPixelUrl');
     });
 
-    it('should call insertUserSyncIframe with the correctly encoded URL', function () {
-      const syncUserOptions = {};
-      const gdprConsent = {};
-      const onCompleteCallback = sinon.spy();
-      const testPixelUrl = 'https://equativ.test.pixel.url?uid=[sas_uid]';
-      buildEquativPixelUrlStub.returns(testPixelUrl);
+    let insertElementStub, onCompleteCallback;
 
-      mobkoiUtils.requestEquativSasId(syncUserOptions, gdprConsent, onCompleteCallback);
+    beforeEach(function () {
+      buildEquativPixelUrlStub.returns('https://equativ.test.pixel.url?uid=[sas_uid]');
+      // swap in about:blank so the frame gets a contentWindow without hitting the network
+      insertElementStub = sandbox.stub(prebidUtils, 'insertElement').callsFake((iframe) => {
+        iframe.src = 'about:blank';
+        document.body.appendChild(iframe);
+      });
+      onCompleteCallback = sinon.spy();
+      mobkoiUtils.requestEquativSasId({}, {}, onCompleteCallback);
+    });
 
-      const expectedEncodedUrl = encodeURIComponent(testPixelUrl);
-      expect(insertUserSyncIframeStub.calledOnce).to.be.true;
-      expect(insertUserSyncIframeStub.firstCall.args[0]).to.include('pixelUrl=' + expectedEncodedUrl);
+    function getIframe() {
+      return insertElementStub.firstCall.args[0];
+    }
+
+    function postFromFrame(data, source = getIframe().contentWindow) {
+      window.dispatchEvent(new MessageEvent('message', { data, source }));
+    }
+
+    afterEach(function () {
+      getIframe().remove();
+    });
+
+    it('should return the URL containing the encoded pixel URL', function () {
+      const url = mobkoiUtils.requestEquativSasId({}, {}, sinon.spy());
+      expect(url).to.include('pixelUrl=' + encodeURIComponent('https://equativ.test.pixel.url?uid=[sas_uid]'));
+      insertElementStub.secondCall.args[0].remove();
+    });
+
+    it('should complete with the SAS ID and remove the iframe on sync complete', function () {
+      const iframe = getIframe();
+      postFromFrame({ type: 'MOBKOI_PIXEL_SYNC_COMPLETE', syncData: TEST_SAS_ID });
+      expect(onCompleteCallback.calledOnceWithExactly(TEST_SAS_ID)).to.be.true;
+      expect(iframe.parentNode).to.be.null;
+    });
+
+    it('should complete with null on sync error', function () {
+      postFromFrame({ type: 'MOBKOI_PIXEL_SYNC_ERROR', error: 'boom' });
+      expect(onCompleteCallback.calledOnceWithExactly(null)).to.be.true;
+      expect(getIframe().parentNode).to.be.null;
+    });
+
+    it('should complete with null if the iframe fails to load', function () {
+      getIframe().dispatchEvent(new Event('error'));
+      expect(onCompleteCallback.calledOnceWithExactly(null)).to.be.true;
+      expect(getIframe().parentNode).to.be.null;
+    });
+
+    it('should ignore messages from other sources', function () {
+      postFromFrame({ type: 'MOBKOI_PIXEL_SYNC_COMPLETE', syncData: 'spoofed' }, window);
+      expect(onCompleteCallback.called).to.be.false;
+    });
+
+    it('should ignore messages without data', function () {
+      // invoke the handler directly: a broadcast null message would also reach other modules' listeners
+      const addEventListenerSpy = sandbox.spy(window, 'addEventListener');
+      const onComplete = sinon.spy();
+      mobkoiUtils.requestEquativSasId({}, {}, onComplete);
+      const iframe = insertElementStub.secondCall.args[0];
+      const handler = addEventListenerSpy.getCalls().find(call => call.args[0] === 'message').args[1];
+      handler({ source: iframe.contentWindow, data: null });
+      expect(onComplete.called).to.be.false;
+      iframe.remove();
+    });
+
+    it('should complete only once', function () {
+      postFromFrame({ type: 'MOBKOI_PIXEL_SYNC_COMPLETE', syncData: TEST_SAS_ID });
+      getIframe().dispatchEvent(new Event('error'));
+      expect(onCompleteCallback.calledOnce).to.be.true;
     });
   });
 
   describe('utils.buildEquativPixelUrl', function () {
-    it('should use the provided adServerBaseUrl URL from syncUserOptions', function () {
+    it('should use the provided integrationEndpoint URL from syncUserOptions', function () {
       const gdprConsent = {
         gdprApplies: true,
         consentString: TEST_CONSENT_STRING
       };
       const syncUserOptions = {
         params: {
-          adServerBaseUrl: TEST_AD_SERVER_BASE_URL
+          integrationEndpoint: TEST_INTEGRATION_ENDPOINT
         }
       };
 
       const url = mobkoiUtils.buildEquativPixelUrl(syncUserOptions, gdprConsent);
       const decodedUrl = decodeFullUrl(url);
 
-      expect(decodedUrl).to.include(TEST_AD_SERVER_BASE_URL);
+      expect(decodedUrl).to.include(TEST_INTEGRATION_ENDPOINT);
     });
 
-    it('should use the PROD ad server endpoint if adServerBaseUrl is not provided', function () {
+    it('should use the PROD integration endpoint if integrationEndpoint is not provided', function () {
       const syncUserOptions = {};
       const gdprConsent = {
         gdprApplies: true,
@@ -150,7 +207,7 @@ describe('mobkoiIdSystem', function () {
       const url = mobkoiUtils.buildEquativPixelUrl(syncUserOptions, gdprConsent);
       const decodedUrl = decodeFullUrl(url);
 
-      expect(decodedUrl).to.include(PROD_AD_SERVER_BASE_URL);
+      expect(decodedUrl).to.include(PROD_PREBID_JS_INTEGRATION_BASE_URL);
     });
 
     it('should contains the Equativ network ID', function () {
@@ -168,7 +225,7 @@ describe('mobkoiIdSystem', function () {
     it('should contain a consent string', function () {
       const syncUserOptions = {
         params: {
-          adServerBaseUrl: TEST_AD_SERVER_BASE_URL
+          integrationEndpoint: TEST_INTEGRATION_ENDPOINT
         }
       };
       const consentObject = {
@@ -188,7 +245,7 @@ describe('mobkoiIdSystem', function () {
     it('should set empty string to gdpr_consent when GDPR is not applies', function () {
       const syncUserOptions = {
         params: {
-          adServerBaseUrl: TEST_AD_SERVER_BASE_URL
+          integrationEndpoint: TEST_INTEGRATION_ENDPOINT
         }
       };
       const gdprConsent = {
@@ -206,7 +263,7 @@ describe('mobkoiIdSystem', function () {
     it('should contain SAS ID marco', function () {
       const syncUserOptions = {
         params: {
-          adServerBaseUrl: TEST_AD_SERVER_BASE_URL
+          integrationEndpoint: TEST_INTEGRATION_ENDPOINT
         }
       };
       const gdprConsent = {

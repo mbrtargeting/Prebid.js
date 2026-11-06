@@ -1,17 +1,12 @@
-const TerserPlugin = require('terser-webpack-plugin');
 var prebid = require('./package.json');
 var path = require('path');
-const cacheDir = path.resolve(__dirname, '.cache/babel-loader');
 var webpack = require('webpack');
 var helpers = require('./gulpHelpers.js');
 var { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
-var argv = require('yargs').argv;
+var argv = helpers.argv;
 const fs = require('fs');
-const babelConfig = require('./babelConfig.js')({disableFeatures: helpers.getDisabledFeatures(), prebidDistUrlBase: argv.distUrlBase});
 const {WebpackManifestPlugin} = require('webpack-manifest-plugin')
-
-// Check if ES5 mode is requested
-const isES5Mode = argv.ES5;
+const addCommonConfig = require('./webpack.common.js');
 
 var plugins = [
   new webpack.EnvironmentPlugin({'LiveConnectMode': null}),
@@ -29,6 +24,12 @@ var plugins = [
           .filter(chunk => chunk.name !== name)
           .flatMap(chunk => [...chunk.files])
           .filter(Boolean);
+        const parent = helpers.getParentModule(name.replace(/\.js$/, ''));
+        if (parent != null) {
+          // include parent module as a dependency so that the web bundler doesn't need
+          // to worry about .submodules.json
+          files.push(parent + '.js');
+        }
         return name && files.length ? {...acc, [`${name}.js`]: files} : acc
       }, seed)
     }
@@ -41,18 +42,35 @@ if (argv.analyze) {
   )
 }
 
-module.exports = {
+module.exports = addCommonConfig({
   mode: 'production',
   devtool: 'source-map',
-  target: isES5Mode ? ['web', 'es5'] : 'web',
+  experiments: {
+    typescript: false
+  },
   cache: {
     type: 'filesystem',
     cacheDirectory: path.resolve(__dirname, '.cache/webpack')
   },
+  context: helpers.getPrecompiledPath(),
   resolve: {
     modules: [
-      path.resolve('.'),
+      helpers.getPrecompiledPath(),
       'node_modules'
+    ],
+    alias: {
+      // alias package.json instead of including it as part of precompilation output;
+      // a simple copy does not work as it contains relative paths (e.g. sideEffects)
+      'package.json': path.resolve(__dirname, 'package.json')
+    }
+  },
+  module: {
+    rules: [
+      {
+        test: /\.js$/,
+        exclude: path.resolve('./node_modules'),
+        extractSourceMap: true,
+      }
     ],
   },
   entry: (() => {
@@ -60,6 +78,10 @@ module.exports = {
       'prebid-core': {
         import: './src/prebid.js'
       },
+      'prebid-core.metadata': {
+        import: './metadata/modules/prebid-core.js',
+        dependOn: 'prebid-core'
+      }
     };
     const selectedModules = new Set(helpers.getArgModules());
 
@@ -69,8 +91,14 @@ module.exports = {
           import: fn,
           dependOn: 'prebid-core'
         };
-
         entry[mod] = moduleEntry;
+        const metadataModule = helpers.getMetadataEntry(mod);
+        if (metadataModule != null) {
+          entry[metadataModule] = {
+            import: `./metadata/modules/${mod}.js`,
+            dependOn: 'prebid-core'
+          }
+        }
       }
     });
     return entry;
@@ -78,65 +106,27 @@ module.exports = {
   output: {
     chunkLoadingGlobal: prebid.globalVarName + 'Chunk',
     chunkLoading: 'jsonp',
-  },
-  module: {
-    rules: [
-      {
-        test: /\.js$/,
-        exclude: isES5Mode ? [] : path.resolve('./node_modules'), // In ES5 mode, process all files
-        use: [
-          {
-            loader: 'babel-loader',
-            options: Object.assign(
-              {cacheDirectory: cacheDir, cacheCompression: false},
-              babelConfig,
-              helpers.getAnalyticsOptions()
-            ),
-          }
-        ]
-      },
-      // Only apply the second rule if not in ES5 mode
-      ...(isES5Mode ? [] : [{
-        include: helpers.getArgModules().map(module => new RegExp('node_modules/' + module + '/')),
-        use: [
-          {
-            loader: 'babel-loader',
-            options: Object.assign({cacheDirectory: cacheDir, cacheCompression: false}, babelConfig)
-          }
-        ],
-      }])
-    ]
+    // install the chunkLoadingGlobal in currentScript.__pbjsScope if it exists (set up by web-bundler/out/bundler.js and web-bundler/load.mjs)
+    // this is to allow multiple instances of bundle to load without interfering with each other
+    globalObject: "('undefined' != typeof document && document.currentScript && document.currentScript.__pbjsScope || self)",
   },
   optimization: {
     usedExports: true,
     sideEffects: true,
-    minimizer: [
-      new TerserPlugin({
-        extractComments: false, // do not generate unhelpful LICENSE comment
-        terserOptions: {
-          module: isES5Mode ? false : true, // Force ES5 output if ES5 mode is enabled
-          ...(isES5Mode && {
-            ecma: 5, // Target ES5
-            compress: {
-              ecma: 5 // Ensure compression targets ES5
-            },
-            mangle: {
-              safari10: true // Ensure compatibility with older browsers
-            }
-          })        }
-      })
-    ],
     splitChunks: {
       chunks: 'initial',
       minChunks: 1,
       minSize: 0,
       cacheGroups: (() => {
-        const libRoot = path.resolve(__dirname, 'libraries');
+        function directoriesIn(relPath) {
+          const root = path.resolve(__dirname, relPath);
+          return fs.readdirSync(root).filter(f => fs.lstatSync(path.resolve(root, f)).isDirectory())
+        }
+
         const libraries = Object.fromEntries(
-          fs.readdirSync(libRoot)
-            .filter((f) => fs.lstatSync(path.resolve(libRoot, f)).isDirectory())
+          directoriesIn('libraries')
             .map(lib => {
-              const dir = path.resolve(libRoot, lib)
+              const dir = helpers.getPrecompiledPath(path.join('libraries', lib))
               const def = {
                 name: lib,
                 test: (module) => {
@@ -146,14 +136,48 @@ module.exports = {
               return [lib, def];
             })
         );
-        const core = path.resolve('./src');
+        const renderers = Object.fromEntries(
+          directoriesIn('creative/renderers')
+            .map(renderer => {
+              const file = helpers.getCreativeRendererPath(renderer);
+              const name = `creative-renderer-${renderer}`;
+              return [name, {
+                name,
+                test: (module) => module.resource === file
+              }]
+            })
+        )
+        const core = helpers.getPrecompiledPath('./src');
+        const nodeMods = path.resolve(__dirname, 'node_modules')
+        const precompiled = helpers.getPrecompiledPath();
 
-        return Object.assign(libraries, {
+        return Object.assign(libraries, renderers,{
+          buildOptions: {
+            // isolate build options so that the web bundler can easily swap them out
+            name: 'buildOptions',
+            test: (module) => {
+              return module.resource === helpers.getPrecompiledPath('buildOptions.mjs');
+            }
+          },
+          corejs: {
+            name: 'corejs',
+            test: (module) => {
+              return module.resource?.startsWith(path.resolve(nodeMods, 'core-js')) ||
+                module.resource?.startsWith(path.resolve(nodeMods, 'core-js-pure'))
+            }
+          },
           core: {
             name: 'chunk-core',
             test: (module) => {
-              return module.resource && module.resource.startsWith(core);
-            }
+              let resource = module.resource;
+              if (resource) {
+                if (resource.startsWith(__dirname) &&
+                  !(resource.startsWith(precompiled) || resource.startsWith(nodeMods))) {
+                  throw new Error(`Un-precompiled module: ${resource}`)
+                }
+                return resource.startsWith(core);
+              }
+            },
           },
         }, {
           default: false,
@@ -163,4 +187,4 @@ module.exports = {
     }
   },
   plugins
-};
+});

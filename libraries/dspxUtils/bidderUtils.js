@@ -1,5 +1,9 @@
 import { BANNER, VIDEO } from '../../src/mediaTypes.js';
-import {deepAccess, isArray, isEmptyStr, isFn} from '../../src/utils.js';
+import { deepAccess, isArray, isEmptyStr, isFn, logError, logWarn } from '../../src/utils.js';
+import { hasPurpose1Consent } from '../../src/utils/gdpr.js';
+import { Renderer } from '../../src/Renderer.js';
+
+const RENDERER_URL_PATTERN = /^(https:)?\/\/([\w-]+\.)+(dspx\.tv|adtech\.app)\//i;
 /**
  * @typedef {import('../src/adapters/bidderFactory.js').BidderRequest} BidderRequest
  * @typedef {import('../src/adapters/bidderFactory.js').BidRequest} BidRequest
@@ -13,15 +17,19 @@ import {deepAccess, isArray, isEmptyStr, isFn} from '../../src/utils.js';
  * @param payload
  */
 export function fillUsersIds(bidRequest, payload) {
-  if (bidRequest.hasOwnProperty('userIdAsEids')) {
-    let didMapping = {
+  // Support both legacy userIdAsEids and new ORTB2 user.ext.eids format
+  const eids = bidRequest.userIdAsEids || deepAccess(bidRequest, 'ortb2.user.ext.eids') || [];
+
+  if (eids.length > 0) {
+    const didMapping = {
       did_netid: 'netid.de',
       did_uid2: 'uidapi.com',
       did_sharedid: 'sharedid.org',
       did_pubcid: 'pubcid.org',
       did_cruid: 'criteo.com',
       did_tdid: 'adserver.org',
-      did_pbmid: 'regexp:[esp\.]*pubmatic\.com',
+      // eslint-disable-next-line no-useless-escape
+      did_pbmid: 'regexp:^(?:esp\.)?pubmatic\.com$',
       did_id5: 'id5-sync.com',
       did_uqid: 'utiq.com',
       did_id5_linktype: ['id5-sync.com', function (e) {
@@ -39,8 +47,8 @@ export function fillUsersIds(bidRequest, payload) {
         }
       }],
     };
-    bidRequest.userIdAsEids?.forEach(eid => {
-      for (let paramName in didMapping) {
+    eids.forEach(eid => {
+      for (const paramName in didMapping) {
         let targetSource = didMapping[paramName];
 
         // func support
@@ -58,14 +66,14 @@ export function fillUsersIds(bidRequest, payload) {
         }
 
         // fill payload
-        let isMatches = targetSourceType === 'eq' ? eid.source === targetSource : eid.source.match(targetSource);
+        const isMatches = targetSourceType === 'eq' ? eid.source === targetSource : eid.source.match(targetSource);
         if (isMatches) {
           if (func == null) {
             if (eid.uids?.[0]?.id) {
               payload[paramName] = eid.uids[0].id;
             }
           } else {
-             payload[paramName] = func(eid);
+            payload[paramName] = func(eid);
           }
         }
       }
@@ -82,12 +90,12 @@ export function appendToUrl(url, what) {
 }
 
 export function objectToQueryString(obj, prefix) {
-  let str = [];
+  const str = [];
   let p;
   for (p in obj) {
     if (obj.hasOwnProperty(p)) {
-      let k = prefix ? prefix + '[' + p + ']' : p;
-      let v = obj[p];
+      const k = prefix ? prefix + '[' + p + ']' : p;
+      const v = obj[p];
       if (v === null || v === undefined) continue;
       str.push((typeof v === 'object')
         ? objectToQueryString(v, k)
@@ -153,7 +161,7 @@ export function getBannerSizes(bid) {
  * @returns {object} sizeObj
  */
 export function parseSize(size) {
-  let sizeObj = {}
+  const sizeObj = {};
   sizeObj.width = parseInt(size[0], 10);
   sizeObj.height = parseInt(size[1], 10);
   return sizeObj;
@@ -178,7 +186,7 @@ export function parseSizes(sizes) {
  * @returns {*}
  */
 export function convertMediaInfoForRequest(mediaTypesInfo) {
-  let requestData = {};
+  const requestData = {};
   Object.keys(mediaTypesInfo).forEach(mediaType => {
     requestData[mediaType] = mediaTypesInfo[mediaType].map(size => {
       return size.width + 'x' + size.height;
@@ -193,7 +201,7 @@ export function convertMediaInfoForRequest(mediaTypesInfo) {
  * @param bid
  */
 export function getMediaTypesInfo(bid) {
-  let mediaTypesInfo = {};
+  const mediaTypesInfo = {};
 
   if (bid.mediaTypes) {
     Object.keys(bid.mediaTypes).forEach(mediaType => {
@@ -228,7 +236,7 @@ export function getBidFloor(bid) {
     });
     return bidFloor?.floor;
   } catch (_) {
-    return 0
+    return 0;
   }
 }
 
@@ -240,24 +248,24 @@ export function siteContentToString(content) {
   if (!content) {
     return '';
   }
-  let stringKeys = ['id', 'title', 'series', 'season', 'artist', 'genre', 'isrc', 'url', 'keywords'];
-  let intKeys = ['episode', 'context', 'livestream'];
-  let arrKeys = ['cat'];
-  let retArr = [];
+  const stringKeys = ['id', 'title', 'series', 'season', 'artist', 'genre', 'isrc', 'url', 'keywords'];
+  const intKeys = ['episode', 'context', 'livestream'];
+  const arrKeys = ['cat'];
+  const retArr = [];
   arrKeys.forEach(k => {
-    let val = deepAccess(content, k);
+    const val = deepAccess(content, k);
     if (val && Array.isArray(val)) {
       retArr.push(k + ':' + val.join('|'));
     }
   });
   intKeys.forEach(k => {
-    let val = deepAccess(content, k);
+    const val = deepAccess(content, k);
     if (val && typeof val === 'number') {
       retArr.push(k + ':' + val);
     }
   });
   stringKeys.forEach(k => {
-    let val = deepAccess(content, k);
+    const val = deepAccess(content, k);
     if (val && typeof val === 'string') {
       retArr.push(k + ':' + encodeURIComponent(val));
     }
@@ -302,32 +310,71 @@ export function extractUserSegments(bid) {
   return undefined;
 }
 
-export function handleSyncUrls(syncOptions, serverResponses, gdprConsent, uspConsent) {
+function buildConsentParams(gdprConsent, uspConsent, gppConsent) {
+  const params = [];
+
+  if (gdprConsent) {
+    if ('gdprApplies' in gdprConsent && typeof gdprConsent.gdprApplies === 'boolean') {
+      params.push(`gdpr=${Number(gdprConsent.gdprApplies)}`);
+    }
+    if (gdprConsent.consentString) {
+      params.push(`gdpr_consent=${encodeURIComponent(gdprConsent.consentString)}`);
+    }
+  }
+
+  if (uspConsent) {
+    params.push(`us_privacy=${encodeURIComponent(uspConsent)}`);
+  }
+
+  if (gppConsent) {
+    if (gppConsent.gppString) {
+      params.push(`gpp=${encodeURIComponent(gppConsent.gppString)}`);
+    }
+    if (gppConsent.applicableSections && gppConsent.applicableSections.length) {
+      params.push(`gpp_sid=${encodeURIComponent(gppConsent.applicableSections.join(','))}`);
+    }
+  }
+
+  return params.join('&');
+}
+
+/**
+ * Sync URL handling.
+ *
+ * Consent params (gdpr/gdpr_consent/us_privacy/gpp/gpp_sid) are always built via
+ * buildConsentParams, with values URL-encoded and omitted when absent.
+ *
+ * @param syncOptions
+ * @param serverResponses
+ * @param gdprConsent
+ * @param uspConsent
+ * @param gppConsent
+ * @param {Object} [options]
+ * @param {boolean} [options.enforcePurpose1] - require TCF purpose 1 consent
+ */
+export function handleSyncUrls(syncOptions, serverResponses, gdprConsent, uspConsent, gppConsent, options = {}) {
   if (!serverResponses || serverResponses.length === 0) {
     return [];
   }
 
-  const syncs = [];
-  let gdprParams = '';
-  if (gdprConsent) {
-    if ('gdprApplies' in gdprConsent && typeof gdprConsent.gdprApplies === 'boolean') {
-      gdprParams = `gdpr=${Number(gdprConsent.gdprApplies)}&gdpr_consent=${gdprConsent.consentString}`;
-    } else {
-      gdprParams = `gdpr_consent=${gdprConsent.consentString}`;
-    }
+  if (options.enforcePurpose1 && !hasPurpose1Consent(gdprConsent)) {
+    return [];
   }
 
-  if (serverResponses.length > 0 && serverResponses[0].body.userSync) {
+  const paramsString = buildConsentParams(gdprConsent, uspConsent, gppConsent);
+  const syncs = [];
+
+  if (serverResponses[0].body.userSync) {
     if (syncOptions.iframeEnabled) {
       serverResponses[0].body.userSync.iframeUrl.forEach((url) => syncs.push({
         type: 'iframe',
-        url: appendToUrl(url, gdprParams)
+        url: appendToUrl(url, paramsString)
       }));
     }
     if (syncOptions.pixelEnabled) {
       serverResponses[0].body.userSync.imageUrl.forEach((url) => syncs.push({
         type: 'image',
-        url: appendToUrl(url, gdprParams)
+        url: appendToUrl(url, paramsString)
       }));
     }
   }
@@ -388,4 +435,44 @@ export function interpretResponse(serverResponse, bidRequest, rendererFunc) {
     bidResponses.push(bidResponse);
   }
   return bidResponses;
+}
+
+/**
+ * @param {object} bidRequest
+ * @param {object} response
+ * @returns {string|null}
+ */
+export function resolveOutstreamRendererUrl(bidRequest, response) {
+  return [bidRequest?.params?.rendererUrl, response?.renderer?.url]
+    .find((url) => RENDERER_URL_PATTERN.test(url)) || null;
+}
+
+/**
+ * @param {object} bidRequest
+ * @param {object} response
+ * @returns {object|undefined}
+ */
+export function createOutstreamRenderer(bidRequest, response) {
+  const url = resolveOutstreamRendererUrl(bidRequest, response);
+  if (!url) {
+    logError('[DSPx] invalid outstream renderer url');
+    return;
+  }
+
+  const renderer = Renderer.install({
+    id: response.renderer.id || response.bid_id,
+    url,
+    config: response.renderer.options || {},
+    loaded: false,
+  });
+
+  try {
+    renderer.setRender((bid) => {
+      const queue = (window.dspxOutstream = window.dspxOutstream || { uq: [] });
+      queue.uq.push(['render', bid]);
+    });
+  } catch (err) {
+    logWarn('[DSPx] Prebid Error calling setRender on renderer', err);
+  }
+  return renderer;
 }

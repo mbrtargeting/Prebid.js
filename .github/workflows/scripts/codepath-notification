@@ -16,3 +16,5 @@ appnexus : prebid@microsoft.com
 pubmatic : header-bidding@pubmatic.com
 openx : prebid@openx.com
 (modules|libraries)/medianet : prebid@media.net
+teads : tech-ssp-video@teads.tv
+ad_spiro : connect@adspiro.io

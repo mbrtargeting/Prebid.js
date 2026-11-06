@@ -1,22 +1,29 @@
-import { convertSemantiqKeywordToOrtb, getOrtbKeywords, semantiqRtdSubmodule, storage } from '../../../modules/semantiqRtdProvider';
+import { convertSemantiqKeywordToOrtb, getOrtbKeywords, semantiqRtdSubmodule, storage } from '../../../modules/semantiqRtdProvider.ts';
 import { expect } from 'chai';
 import { server } from '../../mocks/xhr.js';
 import * as utils from '../../../src/utils.js';
 
+const flushPromises = async () => {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+};
+
 describe('semantiqRtdProvider', () => {
   let clock;
-  let getDataFromLocalStorageStub;
+  let getDataFromSessionStorage;
   let getWindowLocationStub;
 
   beforeEach(() => {
     clock = sinon.useFakeTimers();
-    getDataFromLocalStorageStub = sinon.stub(storage, 'getDataFromLocalStorage').returns(null);
+    getDataFromSessionStorage = sinon.stub(storage, 'getDataFromSessionStorage').returns(null);
     getWindowLocationStub = sinon.stub(utils, 'getWindowLocation').returns(new URL('https://example.com/article'));
   });
 
   afterEach(() => {
     clock.restore();
-    getDataFromLocalStorageStub.restore();
+    getDataFromSessionStorage.restore();
     getWindowLocationStub.restore();
   });
 
@@ -44,7 +51,7 @@ describe('semantiqRtdProvider', () => {
       expect(body.event_type).to.be.equal('pageImpression');
       expect(body.page_impression_id).not.to.be.empty;
       expect(body.source).to.be.equal('semantiqPrebidModule');
-      expect(body.url).to.be.equal('https://example.com/article');
+      expect(body.page_url).to.be.equal('https://example.com/article');
     });
 
     it('uses the correct company ID', () => {
@@ -180,8 +187,58 @@ describe('semantiqRtdProvider', () => {
       expect(requestUrl.searchParams.get('tenantIds')).to.be.equal('13,23');
     });
 
+    it('drops a falsy company id from a list that also has a real id', async () => {
+      const reqBidsConfigObj = {
+        adUnits: [{ bids: [{ bidder: 'appnexus' }] }],
+      };
+
+      const promise = new Promise((resolve) => semantiqRtdSubmodule.getBidRequestData(
+        reqBidsConfigObj,
+        resolve,
+        { params: { companyId: [0, 5] } },
+        {}
+      ));
+
+      server.requests[0].respond(
+        200,
+        { 'Content-Type': 'application/json' },
+        JSON.stringify({})
+      );
+
+      await promise;
+
+      const requestUrl = new URL(server.requests[0].url);
+
+      expect(requestUrl.searchParams.get('tenantIds')).to.be.equal('5');
+    });
+
+    it('falls back when every company id is falsy', async () => {
+      const reqBidsConfigObj = {
+        adUnits: [{ bids: [{ bidder: 'appnexus' }] }],
+      };
+
+      const promise = new Promise((resolve) => semantiqRtdSubmodule.getBidRequestData(
+        reqBidsConfigObj,
+        resolve,
+        { params: { companyId: 0 } },
+        {}
+      ));
+
+      server.requests[0].respond(
+        200,
+        { 'Content-Type': 'application/json' },
+        JSON.stringify({})
+      );
+
+      await promise;
+
+      const requestUrl = new URL(server.requests[0].url);
+
+      expect(requestUrl.searchParams.get('tenantIds')).to.be.equal('1');
+    });
+
     it('gets keywords from the cache if the data is present in the storage', async () => {
-      getDataFromLocalStorageStub.returns(JSON.stringify({ url: 'https://example.com/article', keywords: { sentiment: 'negative', ctx_segment: ['C001', 'C002'] } }));
+      getDataFromSessionStorage.returns(JSON.stringify({ url: 'https://example.com/article', keywords: { sentiment: 'negative', ctx_segment: ['C001', 'C002'] } }));
 
       const reqBidsConfigObj = {
         adUnits: [{ bids: [{ bidder: 'appnexus' }] }],
@@ -210,7 +267,7 @@ describe('semantiqRtdProvider', () => {
     });
 
     it('requests keywords from the server if the URL of the page is different from the cached one', async () => {
-      getDataFromLocalStorageStub.returns(JSON.stringify({ url: 'https://example.com/article', keywords: { cached: 'true' } }));
+      getDataFromSessionStorage.returns(JSON.stringify({ url: 'https://example.com/article', keywords: { cached: 'true' } }));
       getWindowLocationStub.returns(new URL('https://example.com/another-article'));
 
       const reqBidsConfigObj = {
@@ -312,20 +369,26 @@ describe('semantiqRtdProvider', () => {
       expect(reqBidsConfigObj.ortb2Fragments.global).to.deep.equal({ site: { keywords: 'iab_category=politics,sentiment=negative,ctx_segment=C001,ctx_segment=C002' } });
     });
 
-    it("won't modify ortb2 if if no ad units are provided", async () => {
+    it("won't modify ortb2 if no ad units are provided", async () => {
       const reqBidsConfigObj = {
         adUnits: [],
-        ortb2Fragments: {}
+        ortb2Fragments: {
+          global: {}
+        }
       };
 
       const onDoneSpy = sinon.spy();
 
       semantiqRtdSubmodule.getBidRequestData(reqBidsConfigObj, onDoneSpy, { params: {} }, {});
+      await flushPromises();
 
       expect(onDoneSpy.calledOnce).to.be.true;
+      expect(server.requests).to.have.lengthOf(0);
       expect(reqBidsConfigObj).to.deep.equal({
         adUnits: [],
-        ortb2Fragments: {}
+        ortb2Fragments: {
+          global: {}
+        }
       });
     });
 
@@ -418,7 +481,9 @@ describe('semantiqRtdProvider', () => {
     it("won't modify ortb2 if response time hits timeout", async () => {
       const reqBidsConfigObj = {
         adUnits: [{ bids: [{ bidder: 'appnexus' }] }],
-        ortb2Fragments: {},
+        ortb2Fragments: {
+          global: {}
+        },
       };
       const onDoneSpy = sinon.spy();
 
@@ -431,10 +496,19 @@ describe('semantiqRtdProvider', () => {
 
       await promise;
 
+      server.requests[0].respond(
+        200,
+        { 'Content-Type': 'application/json' },
+        JSON.stringify({ sentiment: 'negative' })
+      );
+      await flushPromises();
+
       expect(onDoneSpy.calledOnce).to.be.true;
       expect(reqBidsConfigObj).to.deep.equal({
         adUnits: [{ bids: [{ bidder: 'appnexus' }] }],
-        ortb2Fragments: {},
+        ortb2Fragments: {
+          global: {}
+        },
       });
     });
   });

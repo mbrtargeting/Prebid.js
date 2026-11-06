@@ -1,14 +1,17 @@
 import { expect } from 'chai';
-import { spec } from 'modules/ttdBidAdapter';
+import { spec, withFailover } from 'modules/ttdBidAdapter';
+import * as utils from 'src/utils.js';
 import { deepClone } from 'src/utils.js';
+import adapterManager from 'src/adapterManager.js';
+import { resetFailoverState } from 'libraries/ttdUtils/ajaxFailover.js';
 import { config } from 'src/config';
 import { detectReferer } from 'src/refererDetection.js';
 
-import { buildWindowTree } from '../../helpers/refererDetectionHelper';
+import { buildWindowTree } from '../../helpers/refererDetectionHelper.js';
 
 describe('ttdBidAdapter', function () {
   function testBuildRequests(bidRequests, bidderRequestBase) {
-    let clonedBidderRequest = deepClone(bidderRequestBase);
+    const clonedBidderRequest = deepClone(bidderRequestBase);
     clonedBidderRequest.bids = bidRequests;
     return spec.buildRequests(bidRequests, clonedBidderRequest);
   }
@@ -42,68 +45,86 @@ describe('ttdBidAdapter', function () {
       });
 
       it('should return false when publisherId not passed', function () {
-        let bid = makeBid();
+        const bid = makeBid();
         delete bid.params.publisherId;
         expect(spec.isBidRequestValid(bid)).to.equal(false);
       });
 
       it('should return false when supplySourceId not passed', function () {
-        let bid = makeBid();
+        const bid = makeBid();
         delete bid.params.supplySourceId;
         expect(spec.isBidRequestValid(bid)).to.equal(false);
       });
 
       it('should return false when publisherId is longer than 64 characters', function () {
-        let bid = makeBid();
+        const bid = makeBid();
         bid.params.publisherId = '1'.repeat(65);
         expect(spec.isBidRequestValid(bid)).to.equal(false);
       });
 
       it('should return true when publisherId is equal to 64 characters', function () {
-        let bid = makeBid();
+        const bid = makeBid();
         bid.params.publisherId = '1'.repeat(64);
         expect(spec.isBidRequestValid(bid)).to.equal(true);
       });
 
       it('should return true if placementId is not passed and gpid is passed', function () {
-        let bid = makeBid();
+        const bid = makeBid();
         delete bid.params.placementId;
         bid.ortb2Imp = {
           ext: {
             gpid: '/1111/home#header'
           }
-        }
+        };
         expect(spec.isBidRequestValid(bid)).to.equal(true);
       });
 
       it('should return false if neither placementId nor gpid is passed', function () {
-        let bid = makeBid();
+        const bid = makeBid();
         delete bid.params.placementId;
         expect(spec.isBidRequestValid(bid)).to.equal(false);
       });
 
       it('should return false if neither mediaTypes.banner nor mediaTypes.video is passed', function () {
-        let bid = makeBid();
-        delete bid.mediaTypes
+        const bid = makeBid();
+        delete bid.mediaTypes;
         expect(spec.isBidRequestValid(bid)).to.equal(false);
       });
 
       it('should return false if bidfloor is passed incorrectly', function () {
-        let bid = makeBid();
+        const bid = makeBid();
         bid.params.bidfloor = 'invalid bidfloor';
         expect(spec.isBidRequestValid(bid)).to.equal(false);
       });
 
       it('should return true if bidfloor is passed correctly as a float', function () {
-        let bid = makeBid();
+        const bid = makeBid();
         bid.params.bidfloor = 3.01;
+        expect(spec.isBidRequestValid(bid)).to.equal(true);
+      });
+
+      it('should return false if customBidderEndpoint is provided and does not start with https://', function () {
+        const bid = makeBid();
+        bid.params.customBidderEndpoint = 'customBidderEndpoint/bid/bidder/';
+        expect(spec.isBidRequestValid(bid)).to.equal(false);
+      });
+
+      it('should return false if customBidderEndpoint is provided and does not end with /bid/bidder/', function () {
+        const bid = makeBid();
+        bid.params.customBidderEndpoint = 'https://customBidderEndpoint/bid/bidder';
+        expect(spec.isBidRequestValid(bid)).to.equal(false);
+      });
+
+      it('should return true if customBidderEndpoint is provided that starts with https:// and ends with /bid/bidder/', function () {
+        const bid = makeBid();
+        bid.params.customBidderEndpoint = 'https://customBidderEndpoint/bid/bidder/';
         expect(spec.isBidRequestValid(bid)).to.equal(true);
       });
     });
 
     describe('banner', function () {
       it('should return true if banner.pos is passed correctly', function () {
-        let bid = makeBid();
+        const bid = makeBid();
         bid.mediaTypes.banner.pos = 1;
         expect(spec.isBidRequestValid(bid)).to.equal(true);
       });
@@ -143,30 +164,36 @@ describe('ttdBidAdapter', function () {
       }
 
       it('should return true if required parameters are passed', function () {
-        let bid = makeBid();
+        const bid = makeBid();
         expect(spec.isBidRequestValid(bid)).to.equal(true);
       });
 
       it('should return false if maxduration is missing', function () {
-        let bid = makeBid();
+        const bid = makeBid();
         delete bid.mediaTypes.video.maxduration;
         expect(spec.isBidRequestValid(bid)).to.equal(false);
       });
 
-      it('should return false if api is missing', function () {
-        let bid = makeBid();
+      it('should return true if api is missing', function () {
+        const bid = makeBid();
         delete bid.mediaTypes.video.api;
-        expect(spec.isBidRequestValid(bid)).to.equal(false);
+        expect(spec.isBidRequestValid(bid)).to.equal(true);
+      });
+
+      it('should return true if api is an empty array', function () {
+        const bid = makeBid();
+        bid.mediaTypes.video.api = [];
+        expect(spec.isBidRequestValid(bid)).to.equal(true);
       });
 
       it('should return false if mimes is missing', function () {
-        let bid = makeBid();
+        const bid = makeBid();
         delete bid.mediaTypes.video.mimes;
         expect(spec.isBidRequestValid(bid)).to.equal(false);
       });
 
       it('should return false if protocols is missing', function () {
-        let bid = makeBid();
+        const bid = makeBid();
         delete bid.mediaTypes.video.protocols;
         expect(spec.isBidRequestValid(bid)).to.equal(false);
       });
@@ -185,11 +212,11 @@ describe('ttdBidAdapter', function () {
       };
       const uspConsent = '1YYY';
 
-      let syncs = spec.getUserSyncs(syncOptions, [], gdprConsent, uspConsent);
+      const syncs = spec.getUserSyncs(syncOptions, [], gdprConsent, uspConsent);
       expect(syncs).to.have.lengthOf(1);
       expect(syncs[0].type).to.equal('image');
 
-      let params = new URLSearchParams(new URL(syncs[0].url).search);
+      const params = new URLSearchParams(new URL(syncs[0].url).search);
       expect(params.get('us_privacy')).to.equal(uspConsent);
       expect(params.get('ust')).to.equal('image');
       expect(params.get('gdpr')).to.equal('1');
@@ -252,7 +279,7 @@ describe('ttdBidAdapter', function () {
       custom_kvp: {
         customKey: 'customValue'
       }
-    }
+    };
 
     function validateExtFirstPartyData(ext) {
       expect(ext.data.firstPartyKey).to.equal('firstPartyValue');
@@ -307,10 +334,10 @@ describe('ttdBidAdapter', function () {
     });
 
     it('sends bid requests to the correct custom endpoint', function () {
-      let bannerBidRequestsWithCustomEndpoint = deepClone(baseBannerBidRequests);
-      bannerBidRequestsWithCustomEndpoint[0].params.useHttp2 = true;
+      const bannerBidRequestsWithCustomEndpoint = deepClone(baseBannerBidRequests);
+      bannerBidRequestsWithCustomEndpoint[0].params.customBidderEndpoint = 'https://customBidderEndpoint/bid/bidder/';
       const url = testBuildRequests(bannerBidRequestsWithCustomEndpoint, baseBidderRequest).url;
-      expect(url).to.equal('https://d2.adsrvr.org/bid/bidder/supplier');
+      expect(url).to.equal('https://customBidderEndpoint/bid/bidder/supplier');
     });
 
     it('sends publisher id', function () {
@@ -326,7 +353,7 @@ describe('ttdBidAdapter', function () {
     });
 
     it('sends gpid in tagid if present', function () {
-      let clonedBannerRequests = deepClone(baseBannerBidRequests);
+      const clonedBannerRequests = deepClone(baseBannerBidRequests);
       const gpid = '/1111/home#header';
       clonedBannerRequests[0].ortb2Imp = {
         ext: {
@@ -338,7 +365,7 @@ describe('ttdBidAdapter', function () {
     });
 
     it('sends gpid in ext.gpid if present', function () {
-      let clonedBannerRequests = deepClone(baseBannerBidRequests);
+      const clonedBannerRequests = deepClone(baseBannerBidRequests);
       const gpid = '/1111/home#header';
       clonedBannerRequests[0].ortb2Imp = {
         ext: {
@@ -351,7 +378,7 @@ describe('ttdBidAdapter', function () {
     });
 
     it('sends rwdd in imp.rwdd if present', function () {
-      let clonedBannerRequests = deepClone(baseBannerBidRequests);
+      const clonedBannerRequests = deepClone(baseBannerBidRequests);
       const gpid = '/1111/home#header';
       const rwdd = 1;
       clonedBannerRequests[0].ortb2Imp = {
@@ -390,7 +417,7 @@ describe('ttdBidAdapter', function () {
     });
 
     it('sets the banner pos correctly if sent', function () {
-      let clonedBannerRequests = deepClone(baseBannerBidRequests);
+      const clonedBannerRequests = deepClone(baseBannerBidRequests);
       clonedBannerRequests[0].mediaTypes.banner.pos = 1;
 
       const requestBody = testBuildRequests(clonedBannerRequests, baseBidderRequest).data;
@@ -398,8 +425,8 @@ describe('ttdBidAdapter', function () {
     });
 
     it('sets the banner expansion direction correctly if sent', function () {
-      let clonedBannerRequests = deepClone(baseBannerBidRequests);
-      const expdir = [1, 3]
+      const clonedBannerRequests = deepClone(baseBannerBidRequests);
+      const expdir = [1, 3];
       clonedBannerRequests[0].params.banner = {
         expdir: expdir
       };
@@ -422,12 +449,12 @@ describe('ttdBidAdapter', function () {
           ...baseBannerBidRequests.referer,
           domain: null
         }
-      }
+      };
       const requestBody = testBuildRequests(
-        baseBannerBidRequests, {...baseBidderRequestWithoutRefererDomain, ortb2}
+        baseBannerBidRequests, { ...baseBidderRequestWithoutRefererDomain, ortb2 }
       ).data;
       config.resetConfig();
-      expect(requestBody.site.publisher).to.deep.equal({domain: 'https://foo.bar', id: '13144370'});
+      expect(requestBody.site.publisher).to.deep.equal({ domain: 'https://foo.bar', id: '13144370' });
     });
 
     it('referer domain overrides first party site data publisher domain', function () {
@@ -439,7 +466,7 @@ describe('ttdBidAdapter', function () {
         }
       };
       const requestBody = testBuildRequests(
-        baseBannerBidRequests, {...baseBidderRequest, ortb2}
+        baseBannerBidRequests, { ...baseBidderRequest, ortb2 }
       ).data;
       config.resetConfig();
       expect(requestBody.site.publisher.domain).to.equal(baseBidderRequest.refererInfo.domain);
@@ -451,7 +478,7 @@ describe('ttdBidAdapter', function () {
           keywords: 'highViewability, clothing, holiday shopping'
         }
       };
-      const requestBody = testBuildRequests(baseBannerBidRequests, {...baseBidderRequest, ortb2}).data;
+      const requestBody = testBuildRequests(baseBannerBidRequests, { ...baseBidderRequest, ortb2 }).data;
       config.resetConfig();
       expect(requestBody.ext.ttdprebid.keywords).to.deep.equal(['highViewability', 'clothing', 'holiday shopping']);
     });
@@ -460,7 +487,7 @@ describe('ttdBidAdapter', function () {
       const ortb2 = {
         bcat: ['IAB1-1', 'IAB2-9']
       };
-      const requestBody = testBuildRequests(baseBannerBidRequests, {...baseBidderRequest, ortb2}).data;
+      const requestBody = testBuildRequests(baseBannerBidRequests, { ...baseBidderRequest, ortb2 }).data;
       config.resetConfig();
       expect(requestBody.bcat).to.deep.equal(['IAB1-1', 'IAB2-9']);
     });
@@ -469,13 +496,13 @@ describe('ttdBidAdapter', function () {
       const ortb2 = {
         badv: ['adv1.com', 'adv2.com']
       };
-      const requestBody = testBuildRequests(baseBannerBidRequests, {...baseBidderRequest, ortb2}).data;
+      const requestBody = testBuildRequests(baseBannerBidRequests, { ...baseBidderRequest, ortb2 }).data;
       config.resetConfig();
       expect(requestBody.badv).to.deep.equal(['adv1.com', 'adv2.com']);
     });
 
     it('sets battr properly if present', function () {
-      let clonedBannerRequests = deepClone(baseBannerBidRequests);
+      const clonedBannerRequests = deepClone(baseBannerBidRequests);
       const battr = [1, 2, 3];
       clonedBannerRequests[0].ortb2Imp = {
         banner: {
@@ -487,15 +514,15 @@ describe('ttdBidAdapter', function () {
     });
 
     it('sets ext properly', function () {
-      let clonedBannerRequests = deepClone(baseBannerBidRequests);
+      const clonedBannerRequests = deepClone(baseBannerBidRequests);
 
       const requestBody = testBuildRequests(clonedBannerRequests, baseBidderRequest).data;
       expect(requestBody.ext.ttdprebid.pbjs).to.equal('$prebid.version$');
     });
 
     it('adds gdpr consent info to the request', function () {
-      let consentString = 'BON3G4EON3G4EAAABAENAA____ABl____A';
-      let clonedBidderRequest = deepClone(baseBidderRequest);
+      const consentString = 'BON3G4EON3G4EAAABAENAA____ABl____A';
+      const clonedBidderRequest = deepClone(baseBidderRequest);
       clonedBidderRequest.gdprConsent = {
         consentString: consentString,
         gdprApplies: true
@@ -507,8 +534,8 @@ describe('ttdBidAdapter', function () {
     });
 
     it('adds usp consent info to the request', function () {
-      let consentString = 'BON3G4EON3G4EAAABAENAA____ABl____A';
-      let clonedBidderRequest = deepClone(baseBidderRequest);
+      const consentString = 'BON3G4EON3G4EAAABAENAA____ABl____A';
+      const clonedBidderRequest = deepClone(baseBidderRequest);
       clonedBidderRequest.uspConsent = consentString;
 
       const requestBody = testBuildRequests(baseBannerBidRequests, clonedBidderRequest).data;
@@ -516,11 +543,9 @@ describe('ttdBidAdapter', function () {
     });
 
     it('adds coppa consent info to the request', function () {
-      let clonedBidderRequest = deepClone(baseBidderRequest);
-
-      config.setConfig({coppa: true});
+      const clonedBidderRequest = deepClone(baseBidderRequest);
+      clonedBidderRequest.ortb2 = { regs: { coppa: 1 } };
       const requestBody = testBuildRequests(baseBannerBidRequests, clonedBidderRequest).data;
-      config.resetConfig();
       expect(requestBody.regs.coppa).to.equal(1);
     });
 
@@ -531,7 +556,7 @@ describe('ttdBidAdapter', function () {
           gpp_sid: [6, 7]
         }
       };
-      let clonedBidderRequest = {...deepClone(baseBidderRequest), ortb2};
+      const clonedBidderRequest = { ...deepClone(baseBidderRequest), ortb2 };
       const requestBody = testBuildRequests(baseBannerBidRequests, clonedBidderRequest).data;
       config.resetConfig();
       expect(requestBody.regs.gpp).to.equal('somegppstring');
@@ -552,28 +577,17 @@ describe('ttdBidAdapter', function () {
           'hp': 1
         }]
       };
-      let clonedBannerBidRequests = deepClone(baseBannerBidRequests);
-      clonedBannerBidRequests[0].schain = schain;
+      const clonedBannerBidRequests = deepClone(baseBannerBidRequests);
+      clonedBannerBidRequests[0].ortb2 = { source: { ext: { schain: schain } } };
 
       const requestBody = testBuildRequests(clonedBannerBidRequests, baseBidderRequest).data;
       expect(requestBody.source.ext.schain).to.deep.equal(schain);
     });
 
-    it('no longer uses userId', function () {
-      const TDID = '00000000-0000-0000-0000-000000000000';
-      let clonedBannerRequests = deepClone(baseBannerBidRequests);
-      clonedBannerRequests[0].userId = {
-        tdid: TDID
-      };
-
-      const requestBody = testBuildRequests(clonedBannerRequests, baseBidderRequest).data;
-      expect(requestBody.user.buyeruid).to.be.undefined;
-    });
-
     it('adds unified ID and UID2 info to user.ext.eids in the request', function () {
       const TDID = '00000000-0000-0000-0000-000000000000';
       const UID2 = '99999999-9999-9999-9999-999999999999';
-      let clonedBannerRequests = deepClone(baseBannerBidRequests);
+      const clonedBannerRequests = deepClone(baseBannerBidRequests);
       clonedBannerRequests[0].userIdAsEids = [
         {
           source: 'adserver.org',
@@ -601,28 +615,6 @@ describe('ttdBidAdapter', function () {
 
       const requestBody = testBuildRequests(clonedBannerRequests, baseBidderRequest).data;
       expect(requestBody.user.ext.eids).to.deep.equal(expectedEids);
-      expect(requestBody.user.buyeruid).to.equal(TDID);
-    });
-
-    it('has an empty buyeruid if tdid not found in userIdAsEids', function () {
-      const UID2 = '99999999-9999-9999-9999-999999999999';
-      let clonedBannerRequests = deepClone(baseBannerBidRequests);
-      clonedBannerRequests[0].userIdAsEids = [
-        {
-          source: 'uidapi.com',
-          uids: [
-            {
-              atype: 3,
-              id: UID2
-            }
-          ]
-        }
-      ];
-      const expectedEids = clonedBannerRequests[0].userIdAsEids;
-
-      const requestBody = testBuildRequests(clonedBannerRequests, baseBidderRequest).data;
-      expect(requestBody.user.ext.eids).to.deep.equal(expectedEids);
-      expect(requestBody.user.buyeruid).to.be.undefined;
     });
 
     it('adds first party site data to the request', function () {
@@ -638,7 +630,7 @@ describe('ttdBidAdapter', function () {
           keywords: 'power tools, drills'
         }
       };
-      let clonedBidderRequest = {...deepClone(baseBidderRequest), ortb2};
+      const clonedBidderRequest = { ...deepClone(baseBidderRequest), ortb2 };
       const requestBody = testBuildRequests(baseBannerBidRequests, clonedBidderRequest).data;
       expect(requestBody.site.name).to.equal('example');
       expect(requestBody.site.domain).to.equal('page.example.com');
@@ -651,7 +643,7 @@ describe('ttdBidAdapter', function () {
     });
 
     it('should fallback to floor module if no bidfloor is sent ', function () {
-      let clonedBannerRequests = deepClone(baseBannerBidRequests);
+      const clonedBannerRequests = deepClone(baseBannerBidRequests);
       const bidfloor = 5.00;
       clonedBannerRequests[0].getFloor = () => {
         return { currency: 'USD', floor: bidfloor };
@@ -667,7 +659,7 @@ describe('ttdBidAdapter', function () {
     });
 
     it('adds secure to request', function () {
-      let clonedBannerRequests = deepClone(baseBannerBidRequests);
+      const clonedBannerRequests = deepClone(baseBannerBidRequests);
       clonedBannerRequests[0].ortb2Imp.secure = 0;
 
       let requestBody = testBuildRequests(clonedBannerRequests, baseBidderRequest).data;
@@ -686,11 +678,11 @@ describe('ttdBidAdapter', function () {
         }
       };
 
-      let clonedBidderRequest = {...deepClone(baseBidderRequest), ortb2};
+      const clonedBidderRequest = { ...deepClone(baseBidderRequest), ortb2 };
       const requestBody = testBuildRequests(baseBannerBidRequests, clonedBidderRequest).data;
 
-      validateExtFirstPartyData(requestBody.site.ext)
-      expect(requestBody.site.search).to.equal('test search')
+      validateExtFirstPartyData(requestBody.site.ext);
+      expect(requestBody.site.search).to.equal('test search');
     });
 
     it('adds all of user first party data to request', function() {
@@ -701,16 +693,16 @@ describe('ttdBidAdapter', function () {
         }
       };
 
-      let clonedBidderRequest = {...deepClone(baseBidderRequest), ortb2};
+      const clonedBidderRequest = { ...deepClone(baseBidderRequest), ortb2 };
       const requestBody = testBuildRequests(baseBannerBidRequests, clonedBidderRequest).data;
 
-      validateExtFirstPartyData(requestBody.user.ext)
-      expect(requestBody.user.yob).to.equal(1998)
+      validateExtFirstPartyData(requestBody.user.ext);
+      expect(requestBody.user.yob).to.equal(1998);
     });
 
     it('adds all of imp first party data to request', function() {
       const metric = { type: 'viewability', value: 0.8 };
-      let clonedBannerRequests = deepClone(baseBannerBidRequests);
+      const clonedBannerRequests = deepClone(baseBannerBidRequests);
       clonedBannerRequests[0].ortb2Imp = {
         ext: extFirstPartyData,
         metric: [metric],
@@ -719,10 +711,10 @@ describe('ttdBidAdapter', function () {
 
       const requestBody = testBuildRequests(clonedBannerRequests, baseBidderRequest).data;
 
-      validateExtFirstPartyData(requestBody.imp[0].ext)
+      validateExtFirstPartyData(requestBody.imp[0].ext);
       expect(requestBody.imp[0].tagid).to.equal('1gaa015');
       expect(requestBody.imp[0].metric[0]).to.deep.equal(metric);
-      expect(requestBody.imp[0].clickbrowser).to.equal(1)
+      expect(requestBody.imp[0].clickbrowser).to.equal(1);
     });
 
     it('adds all of app first party data to request', function() {
@@ -733,11 +725,11 @@ describe('ttdBidAdapter', function () {
         }
       };
 
-      let clonedBidderRequest = {...deepClone(baseBidderRequest), ortb2};
+      const clonedBidderRequest = { ...deepClone(baseBidderRequest), ortb2 };
       const requestBody = testBuildRequests(baseBannerBidRequests, clonedBidderRequest).data;
 
-      validateExtFirstPartyData(requestBody.app.ext)
-      expect(requestBody.app.ver).to.equal('v1.0')
+      validateExtFirstPartyData(requestBody.app.ext);
+      expect(requestBody.app.ver).to.equal('v1.0');
     });
 
     it('adds all of device first party data to request', function() {
@@ -748,11 +740,11 @@ describe('ttdBidAdapter', function () {
         }
       };
 
-      let clonedBidderRequest = {...deepClone(baseBidderRequest), ortb2};
+      const clonedBidderRequest = { ...deepClone(baseBidderRequest), ortb2 };
       const requestBody = testBuildRequests(baseBannerBidRequests, clonedBidderRequest).data;
 
-      validateExtFirstPartyData(requestBody.device.ext)
-      expect(requestBody.device.os).to.equal('iPhone')
+      validateExtFirstPartyData(requestBody.device.ext);
+      expect(requestBody.device.os).to.equal('iPhone');
     });
 
     it('adds all of pmp first party data to request', function() {
@@ -763,11 +755,11 @@ describe('ttdBidAdapter', function () {
         }
       };
 
-      let clonedBidderRequest = {...deepClone(baseBidderRequest), ortb2};
+      const clonedBidderRequest = { ...deepClone(baseBidderRequest), ortb2 };
       const requestBody = testBuildRequests(baseBannerBidRequests, clonedBidderRequest).data;
 
-      validateExtFirstPartyData(requestBody.imp[0].pmp.ext)
-      expect(requestBody.imp[0].pmp.private_auction).to.equal(1)
+      validateExtFirstPartyData(requestBody.imp[0].pmp.ext);
+      expect(requestBody.imp[0].pmp.private_auction).to.equal(1);
     });
   });
 
@@ -1031,8 +1023,8 @@ describe('ttdBidAdapter', function () {
     });
 
     it('sets the minduration to 0 if missing', function () {
-      let clonedVideoRequests = deepClone(baseVideoBidRequests);
-      delete clonedVideoRequests[0].mediaTypes.video.minduration
+      const clonedVideoRequests = deepClone(baseVideoBidRequests);
+      delete clonedVideoRequests[0].mediaTypes.video.minduration;
 
       const requestBody = testBuildRequests(clonedVideoRequests, baseBidderRequest).data;
       expect(requestBody.imp[0].video.minduration).to.equal(0);
@@ -1044,6 +1036,22 @@ describe('ttdBidAdapter', function () {
       expect(requestBody.imp[0].video.api[1]).to.equal(3);
     });
 
+    it('omits the api frameworks from the bid request if api is missing', function () {
+      const clonedVideoRequests = deepClone(baseVideoBidRequests);
+      delete clonedVideoRequests[0].mediaTypes.video.api;
+
+      const requestBody = testBuildRequests(clonedVideoRequests, baseBidderRequest).data;
+      expect(requestBody.imp[0].video).to.not.have.property('api');
+    });
+
+    it('omits the api frameworks from the bid request if api is an empty array', function () {
+      const clonedVideoRequests = deepClone(baseVideoBidRequests);
+      clonedVideoRequests[0].mediaTypes.video.api = [];
+
+      const requestBody = testBuildRequests(clonedVideoRequests, baseBidderRequest).data;
+      expect(requestBody.imp[0].video).to.not.have.property('api');
+    });
+
     it('includes the protocols in the bid request', function () {
       const requestBody = testBuildRequests(baseVideoBidRequests, baseBidderRequest).data;
       expect(requestBody.imp[0].video.protocols[0]).to.equal(2);
@@ -1053,7 +1061,7 @@ describe('ttdBidAdapter', function () {
     });
 
     it('sets skip correctly if sent', function () {
-      let clonedVideoRequests = deepClone(baseVideoBidRequests);
+      const clonedVideoRequests = deepClone(baseVideoBidRequests);
       clonedVideoRequests[0].mediaTypes.video.skip = 1;
       clonedVideoRequests[0].mediaTypes.video.skipmin = 5;
       clonedVideoRequests[0].mediaTypes.video.skipafter = 10;
@@ -1065,7 +1073,7 @@ describe('ttdBidAdapter', function () {
     });
 
     it('sets bitrate correctly if sent', function () {
-      let clonedVideoRequests = deepClone(baseVideoBidRequests);
+      const clonedVideoRequests = deepClone(baseVideoBidRequests);
       clonedVideoRequests[0].mediaTypes.video.minbitrate = 100;
       clonedVideoRequests[0].mediaTypes.video.maxbitrate = 500;
 
@@ -1075,7 +1083,7 @@ describe('ttdBidAdapter', function () {
     });
 
     it('sets pos correctly if sent', function () {
-      let clonedVideoRequests = deepClone(baseVideoBidRequests);
+      const clonedVideoRequests = deepClone(baseVideoBidRequests);
       clonedVideoRequests[0].mediaTypes.video.pos = 1;
 
       const requestBody = testBuildRequests(clonedVideoRequests, baseBidderRequest).data;
@@ -1083,7 +1091,7 @@ describe('ttdBidAdapter', function () {
     });
 
     it('sets playbackmethod correctly if sent', function () {
-      let clonedVideoRequests = deepClone(baseVideoBidRequests);
+      const clonedVideoRequests = deepClone(baseVideoBidRequests);
       clonedVideoRequests[0].mediaTypes.video.playbackmethod = [1];
 
       const requestBody = testBuildRequests(clonedVideoRequests, baseBidderRequest).data;
@@ -1091,7 +1099,7 @@ describe('ttdBidAdapter', function () {
     });
 
     it('sets startdelay correctly if sent', function () {
-      let clonedVideoRequests = deepClone(baseVideoBidRequests);
+      const clonedVideoRequests = deepClone(baseVideoBidRequests);
       clonedVideoRequests[0].mediaTypes.video.startdelay = -1;
 
       const requestBody = testBuildRequests(clonedVideoRequests, baseBidderRequest).data;
@@ -1099,7 +1107,7 @@ describe('ttdBidAdapter', function () {
     });
 
     it('sets placement correctly if sent', function () {
-      let clonedVideoRequests = deepClone(baseVideoBidRequests);
+      const clonedVideoRequests = deepClone(baseVideoBidRequests);
       clonedVideoRequests[0].mediaTypes.video.placement = 3;
 
       const requestBody = testBuildRequests(clonedVideoRequests, baseBidderRequest).data;
@@ -1107,7 +1115,7 @@ describe('ttdBidAdapter', function () {
     });
 
     it('sets plcmt correctly if sent', function () {
-      let clonedVideoRequests = deepClone(baseVideoBidRequests);
+      const clonedVideoRequests = deepClone(baseVideoBidRequests);
       clonedVideoRequests[0].mediaTypes.video.plcmt = 3;
 
       const requestBody = testBuildRequests(clonedVideoRequests, baseBidderRequest).data;
@@ -1117,18 +1125,18 @@ describe('ttdBidAdapter', function () {
 
   describe('interpretResponse-empty', function () {
     it('should handle empty response', function () {
-      let result = spec.interpretResponse({});
+      const result = spec.interpretResponse({});
       expect(result.length).to.equal(0);
     });
 
     it('should handle empty seatbid response', function () {
-      let response = {
+      const response = {
         body: {
           'id': '5e5c23a5ba71e78',
           'seatbid': []
         }
       };
-      let result = spec.interpretResponse(response);
+      const result = spec.interpretResponse(response);
       expect(result.length).to.equal(0);
     });
   });
@@ -1234,7 +1242,7 @@ describe('ttdBidAdapter', function () {
     };
 
     it('should get the correct bid response', function () {
-      let result = spec.interpretResponse(incoming, serverRequest);
+      const result = spec.interpretResponse(incoming, serverRequest);
       expect(result.length).to.equal(1);
       expect(result[0]).to.deep.equal(expectedBid);
     });
@@ -1392,7 +1400,7 @@ describe('ttdBidAdapter', function () {
     };
 
     it('should get the correct bid response', function () {
-      let result = spec.interpretResponse(incoming, serverRequest);
+      const result = spec.interpretResponse(incoming, serverRequest);
       expect(result.length).to.equal(2);
       expect(result).to.deep.equal(expectedBids);
     });
@@ -1512,22 +1520,22 @@ describe('ttdBidAdapter', function () {
     };
 
     it('should get the correct bid response if nurl is returned', function () {
-      let result = spec.interpretResponse(incoming, serverRequest);
+      const result = spec.interpretResponse(incoming, serverRequest);
       expect(result.length).to.equal(1);
       expect(result[0]).to.deep.equal(expectedBid);
     });
 
     it('should get the correct bid response if adm is returned', function () {
       const vastXml = "<VAST version=\"2.0\"><Ad id=\"preroll-1\"><InLine><AdSystem>2.0</AdSystem><AdTitle>5748406</AdTitle><Impression id=\"blah\"><![CDATA[http://b.scorecardresearch.com/b?C1=1&C2=6000003&C3=0000000200500000197000000&C4=us&C7=http://www.scanscout.com&C8=scanscout.com&C9=http://www.scanscout.com&C10=xn&rn=-103217130]]></Impression><Creatives><Creative><Linear><Duration>00:00:30</Duration><TrackingEvents> </TrackingEvents><VideoClicks><ClickThrough id=\"scanscout\"><![CDATA[ http://www.target.com ]]></ClickThrough></VideoClicks><MediaFiles><MediaFile height=\"396\" width=\"600\" bitrate=\"496\" type=\"video/x-flv\" delivery=\"progressive\"><![CDATA[http://media.scanscout.com/ads/partner1_a1d1fbbc-c4d4-419f-b6c8-e9db63fd4491.flv]]></MediaFile></MediaFiles></Linear></Creative><Creative><CompanionAds><Companion height=\"250\" width=\"300\" id=\"555750\"><HTMLResource><![CDATA[<A onClick=\"var i= new Image(1,1); i.src='http://app.scanscout.com/ssframework/log/log.png?a=logitemaction&RI=555750&CbC=1&CbF=true&EC=0&RC=0&SmC=2&CbM=1.0E-5&VI=736e6b13bad531dc476bc3612749bc35&admode=preroll&PRI=-4827170214961170629&RprC=0&ADsn=17&VcaI=192,197&RrC=1&VgI=736e6b13bad531dc476bc3612749bc35&AVI=142&Ust=ma&Uctry=us&CI=1223187&AC=4&PI=567&Udma=506&ADI=5748406&VclF=true';\" HREF=\"http://target.com\" target=\"_blank\"> <IMG SRC=\"http://media.scanscout.com/ads/target300x250Companion.jpg\" BORDER=0 WIDTH=300 HEIGHT=250 ALT=\"Click Here\"> </A> <img src=\"http://app.scanscout.com/ssframework/log/log.png?a=logitemaction&RI=555750&CbC=1&CbF=true&EC=1&RC=0&SmC=2&CbM=1.0E-5&VI=736e6b13bad531dc476bc3612749bc35&admode=preroll&PRI=-4827170214961170629&RprC=0&ADsn=17&VcaI=192,197&RrC=1&VgI=736e6b13bad531dc476bc3612749bc35&AVI=142&Ust=ma&Uctry=us&CI=1223187&AC=4&PI=567&Udma=506&ADI=5748406&VclF=true\" height=\"1\" width=\"1\">]]></HTMLResource></Companion></CompanionAds></Creative></Creatives></InLine></Ad></VAST>";
-      let admIncoming = deepClone(incoming);
+      const admIncoming = deepClone(incoming);
       delete admIncoming.body.seatbid[0].bid[0].nurl;
       admIncoming.body.seatbid[0].bid[0].adm = vastXml;
 
-      let vastXmlExpectedBid = deepClone(expectedBid);
+      const vastXmlExpectedBid = deepClone(expectedBid);
       delete vastXmlExpectedBid.vastUrl;
       vastXmlExpectedBid.vastXml = vastXml;
 
-      let result = spec.interpretResponse(admIncoming, serverRequest);
+      const result = spec.interpretResponse(admIncoming, serverRequest);
       expect(result.length).to.equal(1);
       expect(result[0]).to.deep.equal(vastXmlExpectedBid);
     });
@@ -1697,9 +1705,332 @@ describe('ttdBidAdapter', function () {
     };
 
     it('should get the correct bid response', function () {
-      let result = spec.interpretResponse(incoming, serverRequest);
+      const result = spec.interpretResponse(incoming, serverRequest);
       expect(result.length).to.equal(2);
       expect(result).to.deep.equal(expectedBids);
+    });
+  });
+
+  describe('failover', function () {
+    const PRIMARY_URL = 'https://direct.adsrvr.org/bid/bidder/supplier';
+    const DEFAULT_FAILOVER_URL = 'https://bid-openpath.ttdcdn.org/bid/bidder/supplier';
+    const NETWORK_ERROR = { status: 0, timedOut: false };
+    const PAYLOAD = '{"id":"1"}';
+    const OPTIONS = { method: 'POST', contentType: 'text/plain', withCredentials: true };
+
+    let clock;
+    let logWarnStub;
+
+    beforeEach(function () {
+      resetFailoverState();
+      clock = sinon.useFakeTimers();
+      logWarnStub = sinon.stub(utils, 'logWarn');
+    });
+
+    afterEach(function () {
+      clock.restore();
+      logWarnStub.restore();
+      resetFailoverState();
+    });
+
+    // a fake ajax whose n-th call runs the n-th behavior
+    function fakeAjax(...behaviors) {
+      const ajax = sinon.stub();
+      behaviors.forEach((behavior, i) => ajax.onCall(i).callsFake(behavior));
+      return ajax;
+    }
+
+    // behaviors for the fake ajax: fail after `elapsed` ms, or succeed
+    function fail(xhr, elapsed = 0) {
+      return (url, callbacks) => {
+        clock.tick(elapsed);
+        callbacks.error('error', xhr);
+      };
+    }
+
+    function succeed(body = 'response') {
+      return (url, callbacks) => callbacks.success(body, { status: 200, getResponseHeader: () => null });
+    }
+
+    function makeBidderRequest(params) {
+      return { bids: [{ params: Object.assign({ supplySourceId: 'supplier' }, params) }] };
+    }
+
+    function makeCallbacks() {
+      return { success: sinon.spy(), error: sinon.spy() };
+    }
+
+    function send(ajax, params, url = PRIMARY_URL) {
+      const callbacks = makeCallbacks();
+      withFailover(ajax, makeBidderRequest(params))(url, callbacks, PAYLOAD, OPTIONS);
+      return callbacks;
+    }
+
+    describe('withFailover', function () {
+      it('should retry once on the default failover domain after a network error', function () {
+        const ajax = fakeAjax(fail(NETWORK_ERROR), succeed('failover response'));
+        const callbacks = send(ajax);
+        expect(ajax.calledTwice).to.be.true;
+        expect(ajax.firstCall.args[0]).to.equal(PRIMARY_URL);
+        expect(ajax.secondCall.args[0]).to.equal(DEFAULT_FAILOVER_URL);
+        expect(ajax.secondCall.args[2]).to.equal(PAYLOAD);
+        expect(ajax.secondCall.args[3]).to.equal(OPTIONS);
+        expect(callbacks.success.calledOnceWith('failover response')).to.be.true;
+        expect(callbacks.error.called).to.be.false;
+        expect(logWarnStub.calledOnce).to.be.true;
+        expect(logWarnStub.firstCall.args[0]).to.match(/^ttd: /);
+      });
+
+      it('should use params.failoverDomain when provided', function () {
+        const ajax = fakeAjax(fail(NETWORK_ERROR), succeed());
+        send(ajax, { failoverDomain: 'bid.example.com' });
+        expect(ajax.secondCall.args[0]).to.equal('https://bid.example.com/bid/bidder/supplier');
+      });
+
+      it('should warn and use the default domain when params.failoverDomain is not a hostname', function () {
+        const ajax = fakeAjax(fail(NETWORK_ERROR), succeed());
+        send(ajax, { failoverDomain: 'https://bid.example.com/' });
+        expect(ajax.secondCall.args[0]).to.equal(DEFAULT_FAILOVER_URL);
+        // one warning for the invalid domain and one for the retry itself
+        expect(logWarnStub.calledTwice).to.be.true;
+        expect(logWarnStub.firstCall.args[0]).to.contain('failoverDomain');
+      });
+
+      it('should not retry when params.failoverEnabled is false', function () {
+        const ajax = fakeAjax(fail(NETWORK_ERROR));
+        expect(withFailover(ajax, makeBidderRequest({ failoverEnabled: false }))).to.equal(ajax);
+        const callbacks = send(ajax, { failoverEnabled: false });
+        expect(ajax.calledOnce).to.be.true;
+        expect(callbacks.error.calledOnce).to.be.true;
+        expect(logWarnStub.called).to.be.false;
+      });
+
+      it('should retry when params.failoverEnabled is true', function () {
+        const ajax = fakeAjax(fail(NETWORK_ERROR), succeed());
+        send(ajax, { failoverEnabled: true });
+        expect(ajax.calledTwice).to.be.true;
+      });
+
+      it('should not treat setting params.failoverDomain as the switch that enables failover', function () {
+        const ajax = fakeAjax(fail(NETWORK_ERROR));
+        const callbacks = send(ajax, { failoverEnabled: false, failoverDomain: 'bid.example.com' });
+        expect(ajax.calledOnce).to.be.true;
+        expect(callbacks.error.calledOnce).to.be.true;
+      });
+
+      it('should read the params of the first bid', function () {
+        const bidderRequest = {
+          bids: [
+            { params: { supplySourceId: 'supplier', failoverDomain: 'first.example.com' } },
+            { params: { supplySourceId: 'supplier', failoverEnabled: false, failoverDomain: 'second.example.com' } }
+          ]
+        };
+        const ajax = fakeAjax(fail(NETWORK_ERROR), succeed());
+        withFailover(ajax, bidderRequest)(PRIMARY_URL, makeCallbacks(), PAYLOAD, OPTIONS);
+        expect(ajax.calledTwice).to.be.true;
+        expect(ajax.secondCall.args[0]).to.equal('https://first.example.com/bid/bidder/supplier');
+      });
+
+      it('should fail over with the default domain when the bidder request has no bids', function () {
+        const ajax = fakeAjax(fail(NETWORK_ERROR), succeed());
+        withFailover(ajax, {})(PRIMARY_URL, makeCallbacks(), PAYLOAD, OPTIONS);
+        expect(ajax.secondCall.args[0]).to.equal(DEFAULT_FAILOVER_URL);
+      });
+
+      it('should use params.failoverMaxFailureMs when provided', function () {
+        const ajax = fakeAjax(fail(NETWORK_ERROR, 150), succeed());
+        send(ajax, { failoverMaxFailureMs: 200 });
+        expect(ajax.calledTwice).to.be.true;
+      });
+
+      it('should not retry a failure slower than params.failoverMaxFailureMs', function () {
+        const ajax = fakeAjax(fail(NETWORK_ERROR, 201));
+        const callbacks = send(ajax, { failoverMaxFailureMs: 200 });
+        expect(ajax.calledOnce).to.be.true;
+        expect(callbacks.error.calledOnce).to.be.true;
+      });
+
+      it('should use the default max failure time when params.failoverMaxFailureMs is not provided', function () {
+        let ajax = fakeAjax(fail(NETWORK_ERROR, 100), succeed());
+        send(ajax);
+        expect(ajax.calledTwice).to.be.true;
+
+        resetFailoverState();
+        ajax = fakeAjax(fail(NETWORK_ERROR, 101));
+        send(ajax);
+        expect(ajax.calledOnce).to.be.true;
+      });
+
+      it('should warn and use the default max failure time when params.failoverMaxFailureMs is invalid', function () {
+        const ajax = fakeAjax(fail(NETWORK_ERROR, 101));
+        send(ajax, { failoverMaxFailureMs: '200' });
+        expect(ajax.calledOnce).to.be.true;
+        expect(logWarnStub.calledOnce).to.be.true;
+        expect(logWarnStub.firstCall.args[0]).to.contain('failoverMaxFailureMs');
+      });
+
+      it('should retry when a customBidderEndpoint was used and keep its path', function () {
+        const ajax = fakeAjax(fail(NETWORK_ERROR), succeed());
+        send(ajax, { customBidderEndpoint: 'https://custom.example.com/prefix/bid/bidder/' }, 'https://custom.example.com/prefix/bid/bidder/supplier');
+        expect(ajax.secondCall.args[0]).to.equal('https://bid-openpath.ttdcdn.org/prefix/bid/bidder/supplier');
+      });
+    });
+
+    describe('registration', function () {
+      const BID_ID = '243310435309b5';
+      const testWindow = buildWindowTree(['https://www.example.com/test'], 'https://othersite.com/', 'https://example.com/canonical/page');
+
+      function makeFullBidderRequest(bidderCode, params) {
+        return {
+          bidderCode,
+          bidderRequestId: '18084284054531',
+          auctionId: 'e7b34fa3-8654-424e-8c49-03e509e53d8c',
+          timeout: 3000,
+          start: 1540945362099,
+          refererInfo: detectReferer(testWindow)(),
+          ortb2: { source: { tid: 'e7b34fa3-8654-424e-8c49-03e509e53d8c' } },
+          bids: [{
+            bidder: bidderCode,
+            params: Object.assign({ supplySourceId: 'supplier', publisherId: '13144370', placementId: '1gaa015' }, params),
+            mediaTypes: { banner: { sizes: [[300, 250]] } },
+            ortb2Imp: { ext: { tid: '8651474f-58b1-4368-b812-84f8c937a099' } },
+            adUnitCode: 'div-gpt-ad-1460505748561-0',
+            bidId: BID_ID,
+            bidderRequestId: '18084284054531',
+            auctionId: 'e7b34fa3-8654-424e-8c49-03e509e53d8c',
+            src: 'client',
+            bidRequestsCount: 1
+          }]
+        };
+      }
+
+      const bidResponse = JSON.stringify({
+        id: '5e5c23a5ba71e78',
+        seatbid: [{
+          bid: [{
+            id: '6vmb3isptf',
+            crid: 'ttdscreative',
+            impid: BID_ID,
+            price: 1.22,
+            adm: '<!-- creative -->',
+            h: 250,
+            w: 300,
+            ext: { mediatype: 1 }
+          }]
+        }],
+        cur: 'USD'
+      });
+
+      // runs the registered adapter exactly as the adapter manager would
+      function callBids(bidderCode, params, ...behaviors) {
+        const ajax = fakeAjax(...behaviors);
+        const addBidResponse = Object.assign(sinon.spy(), { reject: sinon.spy() });
+        const done = sinon.spy();
+        const adapter = adapterManager.getBidAdapter(bidderCode);
+        adapter.callBids(makeFullBidderRequest(bidderCode, params), addBidResponse, done, ajax, sinon.spy(), fn => fn);
+        return { ajax, addBidResponse, done };
+      }
+
+      ['ttd', 'thetradedesk'].forEach(function (bidderCode) {
+        describe(`bidder ${bidderCode}`, function () {
+          it('should be registered', function () {
+            expect(adapterManager.getBidAdapter(bidderCode)).to.exist;
+          });
+
+          it('should retry on the failover domain and still deliver the bid', function () {
+            const { ajax, addBidResponse, done } = callBids(bidderCode, {}, fail(NETWORK_ERROR), succeed(bidResponse));
+            expect(ajax.calledTwice).to.be.true;
+            expect(ajax.firstCall.args[0]).to.equal(PRIMARY_URL);
+            expect(ajax.secondCall.args[0]).to.equal(DEFAULT_FAILOVER_URL);
+            expect(addBidResponse.calledOnce).to.be.true;
+            expect(addBidResponse.firstCall.args[0]).to.equal('div-gpt-ad-1460505748561-0');
+            expect(addBidResponse.firstCall.args[1].cpm).to.equal(1.22);
+            expect(done.calledOnce).to.be.true;
+          });
+
+          it('should send the same request body to the failover domain', function () {
+            const { ajax } = callBids(bidderCode, {}, fail(NETWORK_ERROR), succeed(bidResponse));
+            expect(ajax.secondCall.args[2]).to.equal(ajax.firstCall.args[2]);
+            expect(ajax.secondCall.args[3]).to.deep.equal(ajax.firstCall.args[3]);
+          });
+
+          it('should use params.failoverDomain', function () {
+            const { ajax } = callBids(bidderCode, { failoverDomain: 'bid.example.com' }, fail(NETWORK_ERROR), succeed(bidResponse));
+            expect(ajax.secondCall.args[0]).to.equal('https://bid.example.com/bid/bidder/supplier');
+          });
+
+          it('should not retry when failoverEnabled is false', function () {
+            const { ajax, addBidResponse, done } = callBids(bidderCode, { failoverEnabled: false }, fail(NETWORK_ERROR));
+            expect(ajax.calledOnce).to.be.true;
+            expect(addBidResponse.called).to.be.false;
+            expect(done.calledOnce).to.be.true;
+          });
+
+          it('should not retry on a timeout', function () {
+            const { ajax, done } = callBids(bidderCode, {}, fail({ status: 0, timedOut: true }));
+            expect(ajax.calledOnce).to.be.true;
+            expect(done.calledOnce).to.be.true;
+          });
+
+          it('should not retry on an HTTP error', function () {
+            const { ajax, done } = callBids(bidderCode, {}, fail({ status: 500, timedOut: false }));
+            expect(ajax.calledOnce).to.be.true;
+            expect(done.calledOnce).to.be.true;
+          });
+
+          it('should complete the bidder without bids when the failover fails too', function () {
+            const { ajax, addBidResponse, done } = callBids(bidderCode, {}, fail(NETWORK_ERROR), fail(NETWORK_ERROR));
+            expect(ajax.calledTwice).to.be.true;
+            expect(addBidResponse.called).to.be.false;
+            expect(done.calledOnce).to.be.true;
+          });
+
+          it('should retry when a customBidderEndpoint was used', function () {
+            const { ajax } = callBids(bidderCode, { customBidderEndpoint: 'https://custom.example.com/bid/bidder/' }, fail(NETWORK_ERROR), succeed(bidResponse));
+            expect(ajax.firstCall.args[0]).to.equal('https://custom.example.com/bid/bidder/supplier');
+            expect(ajax.secondCall.args[0]).to.equal(DEFAULT_FAILOVER_URL);
+          });
+
+          it('should send later auctions straight to the failover domain', function () {
+            callBids(bidderCode, {}, fail(NETWORK_ERROR), succeed(bidResponse));
+            const { ajax, addBidResponse, done } = callBids(bidderCode, {}, succeed(bidResponse));
+            expect(ajax.calledOnce).to.be.true;
+            expect(ajax.firstCall.args[0]).to.equal(DEFAULT_FAILOVER_URL);
+            expect(addBidResponse.calledOnce).to.be.true;
+            expect(addBidResponse.firstCall.args[1].cpm).to.equal(1.22);
+            expect(done.calledOnce).to.be.true;
+          });
+
+          it('should keep sending auctions to the failover domain even if a request to it fails', function () {
+            callBids(bidderCode, {}, fail(NETWORK_ERROR), succeed(bidResponse));
+            callBids(bidderCode, {}, fail(NETWORK_ERROR));
+            const { ajax } = callBids(bidderCode, {}, succeed(bidResponse));
+            expect(ajax.calledOnce).to.be.true;
+            expect(ajax.firstCall.args[0]).to.equal(DEFAULT_FAILOVER_URL);
+          });
+
+          it('should not use the remembered failure when failoverEnabled is false', function () {
+            callBids(bidderCode, {}, fail(NETWORK_ERROR), succeed(bidResponse));
+            const { ajax } = callBids(bidderCode, { failoverEnabled: false }, succeed(bidResponse));
+            expect(ajax.calledOnce).to.be.true;
+            expect(ajax.firstCall.args[0]).to.equal(PRIMARY_URL);
+          });
+
+          it('should not remember a timeout or an HTTP error', function () {
+            callBids(bidderCode, {}, fail({ status: 0, timedOut: true }));
+            callBids(bidderCode, {}, fail({ status: 500, timedOut: false }));
+            const { ajax } = callBids(bidderCode, {}, succeed(bidResponse));
+            expect(ajax.firstCall.args[0]).to.equal(PRIMARY_URL);
+          });
+        });
+      });
+
+      it('should share the remembered failure between ttd and thetradedesk', function () {
+        callBids('ttd', {}, fail(NETWORK_ERROR), succeed(bidResponse));
+        const { ajax } = callBids('thetradedesk', {}, succeed(bidResponse));
+        expect(ajax.calledOnce).to.be.true;
+        expect(ajax.firstCall.args[0]).to.equal(DEFAULT_FAILOVER_URL);
+      });
     });
   });
 });
