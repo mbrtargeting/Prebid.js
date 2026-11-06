@@ -5,6 +5,7 @@ import {
   insertElement,
   logError,
   logWarn,
+  logInfo,
   politeTriggerPixel,
   replaceMacros,
 } from './utils.js';
@@ -215,11 +216,20 @@ export const getRenderingData = hook('sync', function (bidResponse: Bid, options
 });
 
 function prepareBidForRendering(bidResponse: Bid, options?: RenderOptions): Bid {
-  const { ad, adUrl, cpm, originalCpm, safeRenderer } = bidResponse;
+  let { ad, adUrl, cpm, originalCpm, safeRenderer } = bidResponse;
   const repl = {
     AUCTION_PRICE: originalCpm || cpm,
     CLICKTHROUGH: options?.clickUrl || ''
   };
+
+  // -- START: stroeer custom code for testing only
+  if (bidResponse['generateAd']) {
+    logInfo('winning stroeer bid to be generated: ' + JSON.stringify(bidResponse, null, 2));
+    const winner = typeof window['stroeer_ad_config'] === 'object' ? window['stroeer_ad_config'] : { firstBid: '2.0', secondBid: '3.0', thirdBid: '4.0' };
+    winner.auctionPrice = bidResponse['maxprice'] || bidResponse.cpm;
+    ad = bidResponse['generateAd'](winner);
+  }
+  // -- END: stroeer custom code for testing only
 
   const result = {
     ...bidResponse,
