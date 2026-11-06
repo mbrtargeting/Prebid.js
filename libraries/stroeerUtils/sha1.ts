@@ -13,7 +13,7 @@ export const sha1Uint8Array = (input: Uint8Array<ArrayBufferLike>): Uint8Array<A
   dv.setUint32(totalLen - 8, Math.floor(len / 0x1fffffff) | 0);
   dv.setUint32(totalLen - 4, (len * 8) >>> 0);
 
-  let h0 = 0x67452301, h1 = 0xEFCDAB89, h2 = 0x98BADCFE, h3 = 0x10325476, h4 = 0xC3D2E1F0;
+  let h0 = 0x67452301; let h1 = 0xEFCDAB89; let h2 = 0x98BADCFE; let h3 = 0x10325476; let h4 = 0xC3D2E1F0;
   const w = new Int32Array(80);
 
   for (let offset = 0; offset < totalLen; offset += 64) {
@@ -23,14 +23,14 @@ export const sha1Uint8Array = (input: Uint8Array<ArrayBufferLike>): Uint8Array<A
       w[i] = (t << 1) | (t >>> 31);
     }
 
-    let a = h0, b = h1, c = h2, d = h3, e = h4;
+    let a = h0; let b = h1; let c = h2; let d = h3; let e = h4;
 
     for (let i = 0; i < 80; i++) {
       const [f, k] =
-        i < 20 ? [(b & c) | (~b & d), 0x5A827999] :
-          i < 40 ? [b ^ c ^ d, 0x6ED9EBA1] :
-            i < 60 ? [(b & c) | (b & d) | (c & d), 0x8F1BBCDC] :
-              [b ^ c ^ d, 0xCA62C1D6];
+        i < 20 ? [(b & c) | (~b & d), 0x5A827999]
+          : i < 40 ? [b ^ c ^ d, 0x6ED9EBA1]
+            : i < 60 ? [(b & c) | (b & d) | (c & d), 0x8F1BBCDC]
+              : [b ^ c ^ d, 0xCA62C1D6];
       const t = (((a << 5) | (a >>> 27)) + f + e + k + w[i]) | 0;
       e = d; d = c; c = (b << 30) | (b >>> 2); b = a; a = t;
     }
@@ -49,4 +49,4 @@ export const sha1Uint8Array = (input: Uint8Array<ArrayBufferLike>): Uint8Array<A
   out.setUint32(12, h3);
   out.setUint32(16, h4);
   return new Uint8Array(out.buffer);
-}
+};

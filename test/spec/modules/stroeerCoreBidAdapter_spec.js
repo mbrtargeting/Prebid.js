@@ -259,7 +259,7 @@ describe('stroeerCore bid adapter', function () {
           return {
             setAttribute: function () {
             }
-          }
+          };
         },
         referrer,
         getElementById: id => placementElements.find(el => el.id === id)
@@ -280,9 +280,9 @@ describe('stroeerCore bid adapter', function () {
       getBoundingClientRect: function () {
         return {
           top: offsetTop, height: 1
-        }
+        };
       }
-    }
+    };
   }
 
   function setupSingleWindow(sandBox, placementElements = [createElement('div-1', 17), createElement('div-2', 54)]) {
@@ -329,7 +329,7 @@ describe('stroeerCore bid adapter', function () {
             queriedUnitCodes.push(elementId);
             return {
               containerNode: invisibleElement
-            }
+            };
           }
         }
       };
@@ -383,7 +383,7 @@ describe('stroeerCore bid adapter', function () {
       it(`server side auction type ${type} should be invalid`, () => {
         bidRequest.params.ssat = type;
         assert.isFalse(spec.isBidRequestValid(bidRequest));
-      })
+      });
     });
 
     it('should include bids with valid ssat value', () => {
@@ -495,15 +495,6 @@ describe('stroeerCore bid adapter', function () {
     });
 
     describe('url on server request info object', () => {
-      let win;
-      beforeEach(() => {
-        win = setupSingleWindow(sandbox);
-      });
-
-      afterEach(() => {
-        sandbox.restore();
-      });
-
       it('should use hardcoded url as default endpoint', () => {
         const bidReq = buildBidderRequest();
         const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
@@ -555,7 +546,7 @@ describe('stroeerCore bid adapter', function () {
         win.YLHH = buildFakeYLHH({
           '137': 'div-1',
           '248': 'div-2'
-        })
+        });
       });
 
       afterEach(() => {
@@ -664,7 +655,7 @@ describe('stroeerCore bid adapter', function () {
                 return keyValues;
               }
             }
-          }
+          };
         }
 
         it('should have expected local key values', () => {
@@ -733,7 +724,7 @@ describe('stroeerCore bid adapter', function () {
                 };
               }
             }
-          }
+          };
         }
 
         it('should have expected context', () => {
@@ -790,7 +781,7 @@ describe('stroeerCore bid adapter', function () {
                   };
                 }
               }
-            }
+            };
           }
         });
 
@@ -1106,7 +1097,7 @@ describe('stroeerCore bid adapter', function () {
           win.yieldlove_ab = {
             foo: 'bar',
             xyz: 123
-          }
+          };
 
           const bidReq = buildBidderRequest();
           const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
@@ -1336,7 +1327,7 @@ describe('stroeerCore bid adapter', function () {
                   }
                 ]
               }
-            }
+            };
 
             bidReq.ortb2 = utils.deepClone(ortb2);
 
@@ -1364,14 +1355,14 @@ describe('stroeerCore bid adapter', function () {
                   dsaparams: [1, 2]
                 }
               ]
-            }
+            };
             const ortb2 = {
               regs: {
                 ext: {
                   dsa
                 }
               }
-            }
+            };
 
             bidReq.ortb2 = utils.deepClone(ortb2);
 
@@ -1481,7 +1472,7 @@ describe('stroeerCore bid adapter', function () {
           const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
 
           const sentOrtb2 = serverRequestInfo.data.ortb2;
-          assert.deepEqual(sentOrtb2, {site: {ext: ortb2.site.ext}})
+          assert.deepEqual(sentOrtb2, { site: { ext: ortb2.site.ext } });
         });
       });
 
@@ -1506,7 +1497,7 @@ describe('stroeerCore bid adapter', function () {
                   ssat: ssat
                 },
                 userId: userIds
-              }
+              };
 
               const bannerBid1 = {
                 bidId: 'bid8',
@@ -1522,7 +1513,7 @@ describe('stroeerCore bid adapter', function () {
                   ssat: 1
                 },
                 userId: userIds
-              }
+              };
 
               const bannerBid2 = {
                 bidId: 'bid12',
@@ -1538,7 +1529,7 @@ describe('stroeerCore bid adapter', function () {
                   ssat: 2
                 },
                 userId: userIds
-              }
+              };
 
               bidderRequest.bids = [bannerBid1, videoBid, bannerBid2];
 
@@ -1593,7 +1584,7 @@ describe('stroeerCore bid adapter', function () {
               assert.deepEqual(JSON.parse(JSON.stringify(videoServerRequestInfo.data.bids)), expectedVideoBid);
             });
           });
-        })
+        });
       });
     });
   });
@@ -1631,7 +1622,7 @@ describe('stroeerCore bid adapter', function () {
       const result = spec.interpretResponse({ body: bidderResponse });
       assertStandardFieldsOnBannerBid(result[0], 'bid1', '<div>tag1</div>', 300, 600, 4);
       // default custom values
-      assertCustomFieldsOnBid(result[0], 0, 4, undefined, undefined, '<div>tag1</div>', 4, { 'brandId': 123 }, undefined);
+      assertCustomFieldsOnBid(result[0], 0, 4, undefined, undefined, '<div>tag1</div>', 4, { 'brandId': 123 });
 
       assertStandardFieldsOnBannerBid(result[1], 'bid2', '<div>tag2</div>', 728, 90, 7.3);
       // default custom values
@@ -1644,7 +1635,7 @@ describe('stroeerCore bid adapter', function () {
       const videoBidResponse = bidResponses[0];
       assertStandardFieldsOnVideoBid(videoBidResponse, 'bid1', '<vast>video</vast>', 800, 250, 4);
       assertCustomFieldsOnBid(videoBidResponse, 0, 4, undefined, undefined, undefined, 4, undefined);
-    })
+    });
 
     it('should interpret a first price response', () => {
       const bidderResponse = buildBidderResponseSecondPriceAuction();
@@ -1680,7 +1671,7 @@ describe('stroeerCore bid adapter', function () {
       assertStandardFieldsOnBannerBid(result[0], 'bid1', '<div>tag1</div>', 300, 600, 4);
       assert.propertyVal(result[0], 'cp', 4);
       result[0].should.include.keys('rop');
-      assert.propertyVal(result[0], 'ropFactor', 1.2)
+      assert.propertyVal(result[0], 'ropFactor', 1.2);
     });
 
     it('should default cpm, width and height fields to 0 and include bidPriceOptimisation fields if provided and no bids', () => {
@@ -1690,7 +1681,7 @@ describe('stroeerCore bid adapter', function () {
       assert.propertyVal(result[0], 'requestId', 'bid1');
       assert.propertyVal(result[0], 'cp', 4);
       result[0].should.include.keys('rop');
-      assert.propertyVal(result[0], 'ropFactor', 1.2)
+      assert.propertyVal(result[0], 'ropFactor', 1.2);
     });
 
     it('should set meta object', () => {
@@ -1714,7 +1705,7 @@ describe('stroeerCore bid adapter', function () {
         },
       });
 
-      const result = spec.interpretResponse({body: response});
+      const result = spec.interpretResponse({ body: response });
 
       const firstBidMeta = result[0].meta;
       assert.deepPropertyVal(firstBidMeta, 'advertiserDomains', ['website.org', 'domain.com']);
@@ -1722,7 +1713,7 @@ describe('stroeerCore bid adapter', function () {
       assert.propertyVal(firstBidMeta, 'campaignType', 'RTB');
       assert.propertyVal(firstBidMeta, 'another', 'thing');
 
-      assert.isEmpty(result[1].meta)
+      assert.isEmpty(result[1].meta);
     });
 
     it('should set rendering behaviour object', () => {
@@ -1731,13 +1722,13 @@ describe('stroeerCore bid adapter', function () {
         aw: true,
         dr: true,
         rl: false
-      }
+      };
 
       response.bids[0] = Object.assign(response.bids[0], {
         rb: utils.deepClone(rbResponse),
       });
 
-      const result = spec.interpretResponse({body: response});
+      const result = spec.interpretResponse({ body: response });
       assert.deepPropertyVal(result[0], 'rb', rbResponse);
       assert.isUndefined(result[1].rb);
     });
@@ -1872,7 +1863,7 @@ describe('stroeerCore bid adapter', function () {
       });
 
       it('should replace all occurrences of ${SPP_AUCTION_PRICE:ENC}', () => {
-        const bidderResponse = buildBidderResponse({ bidId1: '123456789123456789' });
+        const bidderResponse = buildBidderResponse();
 
         const responseBid = bidderResponse.bids[0];
         responseBid.ad = '<img src=\'tracker.com?p=${SSP_AUCTION_PRICE:ENC}></img>\n<script>var price=${SSP_AUCTION_PRICE:ENC}</script>';
@@ -1891,7 +1882,7 @@ describe('stroeerCore bid adapter', function () {
       });
 
       it('should replace all occurrences of ${AUCTION_PRICE:ENC}', () => {
-        const bidderResponse = buildBidderResponse({ bidId1: '123456789123456789' });
+        const bidderResponse = buildBidderResponse();
 
         const responseBid = bidderResponse.bids[0];
         responseBid.ad = '<img src=\'tracker.com?p=${AUCTION_PRICE:ENC}></img>\n<script>var price=${AUCTION_PRICE:ENC}</script>';
@@ -2011,7 +2002,7 @@ describe('stroeerCore bid adapter', function () {
       });
 
       it('should replace all occurrences of ${THIRD_BID:ENC}', () => {
-        const bidderResponse = buildBidderResponse({ bidId1: '123456789123456789' });
+        const bidderResponse = buildBidderResponse();
 
         const responseBid = bidderResponse.bids[0];
         responseBid.ad = '<img src=\'tracker.com?p=${THIRD_BID:ENC}></img>\n<script>var price=${THIRD_BID:ENC}</script>';
@@ -2030,7 +2021,7 @@ describe('stroeerCore bid adapter', function () {
       });
 
       it('should replace all occurrences of ${SECOND_BID:ENC} with empty string if no second bid', () => {
-        const bidderResponse = buildBidderResponse({ bidId1: '123456789123456789' });
+        const bidderResponse = buildBidderResponse();
 
         const responseBid = bidderResponse.bids[0];
         responseBid.ad = '<img src=\'tracker.com?p=${SECOND_BID:ENC}></img>\n<script>var price=${SECOND_BID:ENC}</script>';
@@ -2051,7 +2042,7 @@ describe('stroeerCore bid adapter', function () {
       });
 
       it('should replace all occurrences of ${THIRD_BID:ENC} with empty string if no second bid', () => {
-        const bidderResponse = buildBidderResponse({ bidId1: '123456789123456789' });
+        const bidderResponse = buildBidderResponse();
 
         const responseBid = bidderResponse.bids[0];
         responseBid.ad = '<img src=\'tracker.com?p=${THIRD_BID:ENC}></img>\n<script>var price=${THIRD_BID:ENC}</script>';
@@ -2077,9 +2068,9 @@ describe('stroeerCore bid adapter', function () {
           price: '12345678',
           expectation: '12345678'
         },
-          { price: '1234.56789', expectation: '1234.567' }, { price: '12345.1234', expectation: '12345.12' },
-          { price: '123456.10', expectation: '123456.1' }, { price: '123456.105', expectation: '123456.1' },
-          { price: '1234567.0052', expectation: '1234567' }, ];
+        { price: '1234.56789', expectation: '1234.567' }, { price: '12345.1234', expectation: '12345.12' },
+        { price: '123456.10', expectation: '123456.1' }, { price: '123456.105', expectation: '123456.1' },
+        { price: '1234567.0052', expectation: '1234567' },];
         validPrices.forEach(test => {
           it(`should safely truncate ${test.price} to ${test.expectation}`, () => {
             const bidderResponse = buildBidderResponse();
@@ -2136,8 +2127,8 @@ describe('stroeerCore bid adapter', function () {
           getAttribute: (name) => attrs[name],
           hasAttribute: (name) => attrs[name] !== undefined,
           tagName: 'SCRIPT',
-        }
-      }
+        };
+      };
     });
 
     function prepForUserConnect(customUserConnectJsUrl = '') {

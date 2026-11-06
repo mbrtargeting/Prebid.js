@@ -12,11 +12,11 @@ import {
   isStr,
   logWarn
 } from '../src/utils.js';
-import { registerBidder } from '../src/adapters/bidderFactory.js'
-import { ajax } from '../src/ajax.js'
-import { BANNER, VIDEO } from '../src/mediaTypes.js'
-import { getGlobal } from '../src/prebidGlobal.js'
-import { config } from '../src/config.js'
+import { registerBidder } from '../src/adapters/bidderFactory.js';
+import { ajax } from '../src/ajax.js';
+import { BANNER, VIDEO } from '../src/mediaTypes.js';
+import { getGlobal } from '../src/prebidGlobal.js';
+import { config } from '../src/config.js';
 import { getBoundingClientRect } from '../libraries/boundingClientRect/boundingClientRect.js';
 import { createCrypter } from '../libraries/stroeerUtils/crypter.ts';
 
@@ -181,7 +181,7 @@ export const spec = {
           logWarn(`${BIDDER_CODE}: Bid setup for ${bidRequest.adUnitCode} is invalid: ${msg}`);
           return false;
         }
-      }
+      };
     };
 
     function hasValidMediaType(bidReq) {
@@ -199,7 +199,7 @@ export const spec = {
 
     return function (bidRequest) {
       return validators.every(f => f(bidRequest));
-    }
+    };
   }()),
 
   buildRequests: function (validBidRequests = [], bidderRequest) {
@@ -266,7 +266,7 @@ export const spec = {
       const payload = {
         ssat: bidRequestWithSsat ? bidRequestWithSsat.params.ssat : undefined,
         ...commonPayload
-      }
+      };
 
       payload.bids = bidRequests.map(bidRequest => {
         const metaTagPosition = win.YLHH?.bidder?.tag?.getMetaTagPositionBy(bidRequest.adUnitCode) ?? bidRequest.adUnitCode;
@@ -297,7 +297,7 @@ export const spec = {
           adUnits: getAdUnits(metaTagPosition),
           zone: getZone(metaTagPosition),
           pageType: getPageType(metaTagPosition),
-        }
+        };
       }
     }
 
@@ -340,7 +340,7 @@ export const spec = {
           mediaType: mediaType,
           size: [size[0], size[1]]
         });
-        return Object.assign({}, floor, { size: size })
+        return Object.assign({}, floor, { size: size });
       });
 
       const floorWithCurrency = [defaultFloor].concat(sizeFloors).find(floor => floor.currency);
@@ -350,7 +350,7 @@ export const spec = {
       }
 
       const currency = floorWithCurrency.currency;
-      const defaultFloorPrice = defaultFloor.currency === currency ? defaultFloor.floor : undefined
+      const defaultFloorPrice = defaultFloor.currency === currency ? defaultFloor.floor : undefined;
 
       return {
         def: defaultFloorPrice,
@@ -412,7 +412,7 @@ export const spec = {
     }
 
     function getValidKeyValues(allKeyValues) {
-      const validKeys = Object.keys(allKeyValues).filter((key) => isValidValuesForKeyValue(allKeyValues[key]))
+      const validKeys = Object.keys(allKeyValues).filter((key) => isValidValuesForKeyValue(allKeyValues[key]));
       return validKeys.reduce((keyValues, key) => ({ ...keyValues, [key]: allKeyValues[key] }), {});
     }
 
@@ -504,7 +504,7 @@ export const spec = {
         }
 
         if (bidResponse.bidPriceOptimisation) {
-          bids.push(Object.assign(bid, bidResponse.bidPriceOptimisation))
+          bids.push(Object.assign(bid, bidResponse.bidPriceOptimisation));
         } else {
           bids.push(bid);
         }
