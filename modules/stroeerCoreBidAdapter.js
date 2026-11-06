@@ -1,10 +1,24 @@
+import {
+  buildUrl,
+  cleanObj,
+  deepAccess,
+  deepSetValue,
+  generateUUID,
+  getWindowSelf,
+  getWindowTop,
+  insertElement,
+  isEmpty,
+  isPlainObject,
+  isStr,
+  logWarn
+} from '../src/utils.js';
 import { registerBidder } from '../src/adapters/bidderFactory.js'
 import { ajax } from '../src/ajax.js'
 import { BANNER, VIDEO } from '../src/mediaTypes.js'
-import * as utils from '../src/utils.js'
 import { getGlobal } from '../src/prebidGlobal.js'
 import { config } from '../src/config.js'
 import { getBoundingClientRect } from '../libraries/boundingClientRect/boundingClientRect.js';
+import { createCrypter } from '../libraries/stroeerUtils/crypter.ts';
 
 const GVL_ID = 136;
 const BIDDER_CODE = 'stroeerCore';
@@ -13,16 +27,16 @@ const DEFAULT_PATH = '/dsh';
 const DEFAULT_PORT = '';
 const DEFAULT_PROTOCOL = 'https';
 
-const _externalCrypter = new Crypter('c2xzRWh5NXhpZmxndTRxYWZjY2NqZGNhTW1uZGZya3Y=', 'eWRpdkFoa2tub3p5b2dscGttamIySGhkZ21jcmg0Znk=');
-const _internalCrypter = new Crypter('1AE180CBC19A8CFEB7E1FCC000A10F5D892A887A2D9=', '0379698055BD41FD05AC543A3AAAD6589BC6E1B3626=');
+const _externalCrypter = createCrypter('c2xzRWh5NXhpZmxndTRxYWZjY2NqZGNhTW1uZGZya3Y=', 'eWRpdkFoa2tub3p5b2dscGttamIySGhkZ21jcmg0Znk=');
+const _internalCrypter = createCrypter('1AE180CBC19A8CFEB7E1FCC000A10F5D892A887A2D9=', '0379698055BD41FD05AC543A3AAAD6589BC6E1B3626=');
 
-const isMainPageAccessible = () => getMostAccessibleTopWindow() === utils.getWindowTop();
+const isMainPageAccessible = () => getMostAccessibleTopWindow() === getWindowTop();
 
 function getStroeerCore() {
-  let win = utils.getWindowSelf();
+  let win = getWindowSelf();
 
   try {
-    while (!win.stroeerCore && utils.getWindowTop() !== win && win.parent.location.href.length) {
+    while (!win.stroeerCore && getWindowTop() !== win && win.parent.location.href.length) {
       win = win.parent;
     }
   } catch (ignore) {
@@ -33,10 +47,10 @@ function getStroeerCore() {
 }
 
 function getMostAccessibleTopWindow() {
-  let res = utils.getWindowSelf();
+  let res = getWindowSelf();
 
   try {
-    while (utils.getWindowTop().top !== res && res.parent.location.href.length) {
+    while (getWindowTop().top !== res && res.parent.location.href.length) {
       res = res.parent;
     }
   } catch (ignore) {
@@ -48,7 +62,7 @@ function getMostAccessibleTopWindow() {
 function elementInView(elementId) {
   const resolveElement = (elId) => {
     let slotInfo;
-    let win = utils.getWindowSelf();
+    let win = getWindowSelf();
     if (win.SDG && (slotInfo = win.SDG.Wrapper.getSlotByName(elId)) !== null) {
       return slotInfo.containerNode;
     } else {
@@ -68,15 +82,15 @@ function elementInView(elementId) {
   };
 
   try {
-    return visibleInWindow(resolveElement(elementId), utils.getWindowSelf());
+    return visibleInWindow(resolveElement(elementId), getWindowSelf());
   } catch (e) {
     // old browser, element not found, cross-origin etc.
   }
   return undefined;
 }
 
-function buildUrl({ host: hostname = DEFAULT_HOST, port = DEFAULT_PORT, path: pathname = DEFAULT_PATH, protocol = DEFAULT_PROTOCOL }) {
-  return utils.buildUrl({ protocol, hostname, port, pathname });
+function buildEndpointUrl({ host: hostname = DEFAULT_HOST, port = DEFAULT_PORT, path: pathname = DEFAULT_PATH, protocol = DEFAULT_PROTOCOL }) {
+  return buildUrl({ protocol, hostname, port, pathname });
 }
 
 function setupGlobalNamespace(anyBid) {
@@ -101,7 +115,7 @@ function initUserConnect() {
 
   scriptElement.src = userConnectJsUrl;
 
-  utils.insertElement(scriptElement);
+  insertElement(scriptElement);
 }
 
 function hasBanner(bidReq) {
@@ -122,10 +136,12 @@ function groupBy(array, keyFns) {
   const groups = [];
 
   array.forEach(element => {
-    let group = groups.find(group => keys.every(keyName => group.key[keyName] === keyFns[keyName](utils.deepAccess(element, keyName))));
+    let group = groups.find(group => keys.every(keyName => group.key[keyName] === keyFns[keyName](deepAccess(element, keyName))));
     if (!group) {
       const key = {};
-      keys.forEach(name => key[name] = keyFns[name](utils.deepAccess(element, name)));
+      keys.forEach(name => {
+        key[name] = keyFns[name](deepAccess(element, name));
+      });
       group = { key, values: [] };
       groups.push(group);
     }
@@ -152,8 +168,9 @@ export const spec = {
   code: BIDDER_CODE,
   gvlid: GVL_ID,
   supportedMediaTypes: [BANNER, VIDEO],
+  alwaysHasCapacity: true,
 
-  isBidRequestValid: (function() {
+  isBidRequestValid: (function () {
     const validators = [];
 
     const createValidator = (checkFn, msg) => {
@@ -161,7 +178,7 @@ export const spec = {
         if (checkFn(bidRequest)) {
           return true;
         } else {
-          utils.logWarn(`${BIDDER_CODE}: Bid setup for ${bidRequest.adUnitCode} is invalid: ${msg}`);
+          logWarn(`${BIDDER_CODE}: Bid setup for ${bidRequest.adUnitCode} is invalid: ${msg}`);
           return false;
         }
       }
@@ -175,26 +192,26 @@ export const spec = {
       'the media type is invalid'));
     validators.push(createValidator((bidReq) => typeof bidReq.params === 'object',
       'the custom params does not exist'));
-    validators.push(createValidator((bidReq) => utils.isStr(bidReq.params.sid),
+    validators.push(createValidator((bidReq) => isStr(bidReq.params.sid),
       'the sid field must be a string'));
     validators.push(createValidator((bidReq) => bidReq.params.ssat === undefined || [1, 2].indexOf(bidReq.params.ssat) > -1,
       'the ssat field is invalid (must be 1 or 2)'));
 
-    return function(bidRequest) {
+    return function (bidRequest) {
       return validators.every(f => f(bidRequest));
     }
   }()),
 
-  buildRequests: function(validBidRequests = [], bidderRequest) {
+  buildRequests: function (validBidRequests = [], bidderRequest) {
     const anyBid = bidderRequest.bids[0];
-    const win = utils.getWindowSelf();
+    const win = getWindowSelf();
 
     setupGlobalNamespace(anyBid);
 
     const refererInfo = bidderRequest.refererInfo;
 
     const commonPayload = {
-      id: utils.generateUUID(),
+      id: generateUUID(),
       ref: refererInfo.ref,
       mpa: isMainPageAccessible(),
       ver: getVersionValues(win),
@@ -202,17 +219,15 @@ export const spec = {
       ab: win['yieldlove_ab'],
       kvg: getGlobalKeyValues(),
       url: refererInfo.page,
-      schain: anyBid.schain
+      schain: deepAccess(bidderRequest, 'ortb2.source.ext.schain'),
     };
 
-    const user = utils.cleanObj({
-      data: utils.deepAccess(bidderRequest, 'ortb2.user.data'),
-      // userId is deprecated in v9, removed in v10. Yet prefer v9's userId (euids) over v10's userIdAsEids (eids).
-      euids: anyBid.userId,
-      eids: anyBid.userId ? undefined : anyBid.userIdAsEids,
+    const user = cleanObj({
+      data: deepAccess(bidderRequest, 'ortb2.user.data'),
+      eids: anyBid.userIdAsEids,
     });
 
-    if (!utils.isEmpty(user)) {
+    if (!isEmpty(user)) {
       commonPayload.user = user;
     }
 
@@ -228,7 +243,7 @@ export const spec = {
     copyDeepPaths(commonPayload, bidderRequest.ortb2, ORTB2_PATHS, 'ortb2');
 
     const serverRequestInfos = [];
-    const endpointUrl = buildUrl(anyBid.params);
+    const endpointUrl = buildEndpointUrl(anyBid.params);
 
     addServerRequestInfos(hasBanner, bidRequest => ({ ban: createBannerObject(bidRequest) }));
     addServerRequestInfos(hasVideo, bidRequest => ({ vid: createVideoObject(bidRequest) }));
@@ -287,11 +302,11 @@ export const spec = {
     }
 
     function bannerBidSizes(bid) {
-      return utils.deepAccess(bid, 'mediaTypes.banner.sizes') || bid.sizes /* for prebid < 3 */ || [];
+      return deepAccess(bid, 'mediaTypes.banner.sizes') || bid.sizes /* for prebid < 3 */ || [];
     }
 
     function createVideoObject(bidRequest) {
-      const video = utils.deepAccess(bidRequest, 'mediaTypes.video') || {};
+      const video = deepAccess(bidRequest, 'mediaTypes.video') || {};
       return {
         ctx: video.context,
         siz: video.playerSize,
@@ -377,7 +392,7 @@ export const spec = {
 
     function getGlobalKeyValues() {
       const kvgConfig = config.getConfig('kvg');
-      const configKeyValues = utils.isPlainObject(kvgConfig) ? getValidKeyValues(kvgConfig) : {};
+      const configKeyValues = isPlainObject(kvgConfig) ? getValidKeyValues(kvgConfig) : {};
       let metaTagKeyValues = {};
 
       try {
@@ -407,19 +422,19 @@ export const spec = {
 
     function copyDeepPaths(target, source, paths, targetPrefix = '') {
       paths.forEach(path => {
-        const value = utils.deepAccess(source, path);
+        const value = deepAccess(source, path);
         if (value !== undefined) {
           const targetPath = targetPrefix
             ? `${targetPrefix}.${path}`
             : path;
 
-          utils.deepSetValue(target, targetPath, value);
+          deepSetValue(target, targetPath, value);
         }
       });
     }
   },
 
-  interpretResponse: function(serverResponse) {
+  interpretResponse: function (serverResponse) {
     const bids = [];
 
     if (serverResponse.body && typeof serverResponse.body === 'object') {
@@ -457,7 +472,7 @@ export const spec = {
           originalAd: bidResponse.ad,
           tracking: bidResponse.tracking,
           rb: bidResponse.rb,
-          generateAd: function({ auctionPrice, firstBid, secondBid, thirdBid }) {
+          generateAd: function ({ auctionPrice, firstBid, secondBid, thirdBid }) {
             let sspAuctionPrice = auctionPrice;
 
             if (this.exchangeRate && this.exchangeRate !== 1) {
@@ -467,14 +482,14 @@ export const spec = {
             auctionPrice = tunePrice(auctionPrice);
             sspAuctionPrice = tunePrice(sspAuctionPrice);
 
-            const sspFirstBid = firstBid == null ? '' : _internalCrypter.encrypt(this.adId, tunePrice(firstBid).toString());
-            const sspSecondBid = secondBid == null ? '' : _internalCrypter.encrypt(this.adId, tunePrice(secondBid).toString());
-            const sspThirdBid = thirdBid == null ? '' : _internalCrypter.encrypt(this.adId, tunePrice(thirdBid).toString());
+            const sspFirstBid = firstBid == null ? '' : _internalCrypter(this.adId, tunePrice(firstBid).toString());
+            const sspSecondBid = secondBid == null ? '' : _internalCrypter(this.adId, tunePrice(secondBid).toString());
+            const sspThirdBid = thirdBid == null ? '' : _internalCrypter(this.adId, tunePrice(thirdBid).toString());
 
             // note: adId provided by prebid elsewhere (same as bidId)
             return this.originalAd
-              .replace(/\${AUCTION_PRICE:ENC}/g, _externalCrypter.encrypt(this.adId, auctionPrice.toString()))
-              .replace(/\${SSP_AUCTION_PRICE:ENC}/g, _internalCrypter.encrypt(this.adId, sspAuctionPrice.toString()))
+              .replace(/\${AUCTION_PRICE:ENC}/g, _externalCrypter(this.adId, auctionPrice.toString()))
+              .replace(/\${SSP_AUCTION_PRICE:ENC}/g, _internalCrypter(this.adId, sspAuctionPrice.toString()))
               .replace(/\${FIRST_BID:ENC}/g, sspFirstBid)
               .replace(/\${SECOND_BID:ENC}/g, sspSecondBid)
               .replace(/\${THIRD_BID:ENC}/g, sspThirdBid)
@@ -499,7 +514,7 @@ export const spec = {
     return bids;
   },
 
-  getUserSyncs: function(syncOptions, serverResponses) {
+  getUserSyncs: function (syncOptions, serverResponses) {
     // WARNING: we are breaking rules by inserting sync elements ourselves instead of prebid.
     // This is ok as we are using our private prebid.js build.
 
@@ -541,214 +556,9 @@ function tunePrice(price) {
     else throwError();
 
     const newPrice = integerPart + (fractionalPart.length > 0 ? '.' + fractionalPart : '');
-    utils.logWarn(`truncated price ${price} to ${newPrice} to fit into 8 bytes`);
+    logWarn(`truncated price ${price} to ${newPrice} to fit into 8 bytes`);
     return newPrice;
   }
 
   throwError();
 }
-
-function Crypter(encKey, intKey) {
-  this.encKey = atob(encKey); // padEnd key
-  this.intKey = atob(intKey); // signature key
-}
-
-Crypter.prototype.encrypt = function(anyRandomString, data) {
-  const CIPHERTEXT_SIZE = 8;
-  const SIGNATURE_SIZE = 4;
-  let paddedImpressionId = padEnd(anyRandomString, 16, '0').substring(0, 16);
-
-  if (data.length > CIPHERTEXT_SIZE) {
-    throw new Error('data to encrypt is too long');
-  }
-
-  let encryptionPad = str_hmac_sha1(this.encKey, paddedImpressionId);
-
-  let encryptedPrice = '';
-
-  for (let i = 0; i < CIPHERTEXT_SIZE; i++) {
-    let priceCharCode = (i >= data.length) ? '\x00' : data.charCodeAt(i);
-    encryptedPrice = encryptedPrice + String.fromCharCode(0xff & (priceCharCode ^ convertSignedByte(encryptionPad.charCodeAt(i))));
-  }
-
-  // Integrity
-
-  data = padEnd(data, CIPHERTEXT_SIZE, '\u0000');
-  data += paddedImpressionId;
-
-  const signature = str_hmac_sha1(this.intKey, data).substring(0, SIGNATURE_SIZE);
-
-  return base64EncodeUrlFriendly(paddedImpressionId + encryptedPrice + signature);
-};
-
-function base64EncodeUrlFriendly(str) {
-  return btoa(str)
-    .replace(/\+/g, '-') // Convert '+' to '-'
-    .replace(/\//g, '_') // Convert '/' to '_'
-    .replace(/=+$/, ''); // Remove ending '='
-}
-
-function convertSignedByte(value) {
-  if (value >= 128) {
-    return value - 256;
-  } else {
-    return value;
-  }
-}
-
-function padEnd(str, targetLength, paddingChar) {
-  const remainder = targetLength - str.length;
-  for (let i = 0; i < remainder; i++) {
-    str += paddingChar;
-  }
-  return str;
-}
-
-/* eslint-disable camelcase */
-// Code taken from http://pajhome.org.uk/crypt/md5/sha1.js
-/*
- * Configurable variables. You may need to tweak these to be compatible with
- * the server-side, but the defaults work in most cases.
- */
-const chrsz = 8; // bits per input character. 8 - ASCII; 16 - Unicode
-
-/*
- * These are the functions you'll usually want to call
- * They take string arguments and return either hex or base-64 encoded strings
- */
-function str_hmac_sha1(key, data) {
-  return binb2str(core_hmac_sha1(key, data));
-}
-
-/*
- * Calculate the SHA-1 of an array of big-endian words, and a bit length
- */
-function core_sha1(x, len) {
-  /* append padding */
-  x[len >> 5] |= 0x80 << (24 - len % 32);
-  x[((len + 64 >> 9) << 4) + 15] = len;
-
-  let w = Array(80);
-  let a = 1732584193;
-  let b = -271733879;
-  let c = -1732584194;
-  let d = 271733878;
-  let e = -1009589776;
-
-  for (let i = 0; i < x.length; i += 16) {
-    const olda = a;
-    const oldb = b;
-    const oldc = c;
-    const oldd = d;
-    const olde = e;
-
-    for (let j = 0; j < 80; j++) {
-      if (j < 16) {
-        w[j] = x[i + j];
-      } else {
-        w[j] = rol(w[j - 3] ^ w[j - 8] ^ w[j - 14] ^ w[j - 16], 1);
-      }
-      const t = safe_add(safe_add(rol(a, 5), sha1_ft(j, b, c, d)), safe_add(safe_add(e, w[j]), sha1_kt(j)));
-      e = d;
-      d = c;
-      c = rol(b, 30);
-      b = a;
-      a = t;
-    }
-
-    a = safe_add(a, olda);
-    b = safe_add(b, oldb);
-    c = safe_add(c, oldc);
-    d = safe_add(d, oldd);
-    e = safe_add(e, olde);
-  }
-  return [a, b, c, d, e]; // Was Array(a, b, c, d, e)
-}
-
-/*
- * Perform the appropriate triplet combination function for the current
- * iteration
- */
-function sha1_ft(t, b, c, d) {
-  if (t < 20) {
-    return (b & c) | ((~b) & d);
-  }
-  if (t < 40) {
-    return b ^ c ^ d;
-  }
-  if (t < 60) {
-    return (b & c) | (b & d) | (c & d);
-  }
-  return b ^ c ^ d;
-}
-
-/*
- * Determine the appropriate additive constant for the current iteration
- */
-function sha1_kt(t) {
-  return (t < 20) ? 1518500249 : (t < 40) ? 1859775393 : (t < 60) ? -1894007588 : -899497514;
-}
-
-/*
- * Calculate the HMAC-SHA1 of a key and some data
- */
-function core_hmac_sha1(key, data) {
-  let bkey = str2binb(key);
-  if (bkey.length > 16) {
-    bkey = core_sha1(bkey, key.length * chrsz);
-  }
-
-  const ipad = Array(16);
-  const opad = Array(16);
-  for (let i = 0; i < 16; i++) {
-    ipad[i] = bkey[i] ^ 0x36363636;
-    opad[i] = bkey[i] ^ 0x5C5C5C5C;
-  }
-
-  const hash = core_sha1(ipad.concat(str2binb(data)), 512 + data.length * chrsz);
-  return core_sha1(opad.concat(hash), 512 + 160);
-}
-
-/*
- * Add integers, wrapping at 2^32. This uses 16-bit operations internally
- * to work around bugs in some JS interpreters.
- */
-function safe_add(x, y) {
-  const lsw = (x & 0xFFFF) + (y & 0xFFFF);
-  const msw = (x >> 16) + (y >> 16) + (lsw >> 16);
-  return (msw << 16) | (lsw & 0xFFFF);
-}
-
-/*
- * Bitwise rotate a 32-bit number to the left.
- */
-function rol(num, cnt) {
-  return (num << cnt) | (num >>> (32 - cnt));
-}
-
-/*
- * Convert an 8-bit or 16-bit string to an array of big-endian words
- * In 8-bit function, characters >255 have their hi-byte silently ignored.
- */
-function str2binb(str) {
-  const bin = []; // was Array()
-  const mask = (1 << chrsz) - 1;
-  for (let i = 0; i < str.length * chrsz; i += chrsz) {
-    bin[i >> 5] |= (str.charCodeAt(i / chrsz) & mask) << (32 - chrsz - i % 32);
-  }
-  return bin;
-}
-
-/*
- * Convert an array of big-endian words to a string
- */
-function binb2str(bin) {
-  let str = '';
-  const mask = (1 << chrsz) - 1;
-  for (let i = 0; i < bin.length * 32; i += chrsz) {
-    str += String.fromCharCode((bin[i >> 5] >>> (32 - chrsz - i % 32)) & mask);
-  }
-  return str;
-}
-
-/* eslint-enable camelcase */

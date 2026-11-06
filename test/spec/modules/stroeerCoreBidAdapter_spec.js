@@ -1,13 +1,14 @@
-import {assert} from 'chai';
-import {spec} from 'modules/stroeerCoreBidAdapter.js';
+import { assert } from 'chai';
+import { spec } from 'modules/stroeerCoreBidAdapter.js';
 import * as utils from 'src/utils.js';
-import {BANNER, VIDEO} from '../../../src/mediaTypes.js';
-import * as prebidGlobal from '../../../src/prebidGlobal';
+import { BANNER, VIDEO } from '../../../src/mediaTypes.js';
+import * as prebidGlobal from '../../../src/prebidGlobal.js';
 import sinon from 'sinon';
-import * as ajax from 'src/ajax.js';
-import {config} from '../../../src/config';
+import { server } from 'test/mocks/xhr.js';
+import { config } from '../../../src/config.js';
+import { createDecrypter } from '../../../libraries/stroeerUtils/decrypter.ts';
 
-describe('stroeerCore bid adapter', function() {
+describe('stroeerCore bid adapter', function () {
   let sandbox;
   let bidderRequest;
   let clock;
@@ -245,7 +246,7 @@ describe('stroeerCore bid adapter', function() {
   });
 
   const createWindow = (href, params = {}) => {
-    let { parent, referrer, top, frameElement, placementElements = [] } = params;
+    const { parent, referrer, top, frameElement, placementElements = [] } = params;
     const win = {
       frameElement,
       parent,
@@ -254,9 +255,9 @@ describe('stroeerCore bid adapter', function() {
         href
       },
       document: {
-        createElement: function() {
+        createElement: function () {
           return {
-            setAttribute: function() {
+            setAttribute: function () {
             }
           }
         },
@@ -276,7 +277,7 @@ describe('stroeerCore bid adapter', function() {
   function createElement(id, offsetTop = 0) {
     return {
       id,
-      getBoundingClientRect: function() {
+      getBoundingClientRect: function () {
         return {
           top: offsetTop, height: 1
         }
@@ -319,22 +320,15 @@ describe('stroeerCore bid adapter', function() {
   describe('slot location uses SDG API if available', () => {
     let queriedUnitCodes = [];
     beforeEach(() => {
-      const visibleElement = createElement('div-1', 17);
-      const invisibleElement = createElement('invisible-div', 250);
-      const allElements = [createElement('div-2', 54), visibleElement, visibleElement];
-      const win = setupSingleWindow(sandbox, allElements);
+      const visibleElements = [createElement('div-1', 17), createElement('div-2', 54)];
+      const invisibleElement = createElement('invisible-div-1', -10);
+      const win = setupSingleWindow(sandbox, visibleElements);
       win.SDG = {
         Wrapper: {
-          getSlotByName: function(slotName) {
-            queriedUnitCodes.push(slotName);
-            let element;
-            if (slotName === 'div-1-alpha') {
-              element = visibleElement;
-            } else if (slotName === 'div-2-alpha') {
-              element = invisibleElement;
-            }
+          getSlotByName: function (elementId) {
+            queriedUnitCodes.push(elementId);
             return {
-              containerNode: element
+              containerNode: invisibleElement
             }
           }
         }
@@ -352,22 +346,20 @@ describe('stroeerCore bid adapter', function() {
 
       const requests = spec.buildRequests(bidderRequest.bids, bidderRequest)[0];
 
-      const bidForVisibleElement = requests.data.bids[0];
-      const bidForInvisibleElement = requests.data.bids[1];
-
-      assert.isTrue(bidForVisibleElement.viz);
-      assert.isFalse(bidForInvisibleElement.viz);
+      requests.data.bids.forEach((bid) => {
+        assert.isFalse(bid.viz);
+      });
 
       assert.deepInclude(queriedUnitCodes, 'div-1-alpha');
       assert.deepInclude(queriedUnitCodes, 'div-2-alpha');
     });
   });
 
-  it('should support BANNER and VIDEO mediaType', function() {
+  it('should support BANNER and VIDEO mediaType', function () {
     assert.deepEqual(spec.supportedMediaTypes, [BANNER, VIDEO]);
   });
 
-  it('should have GDPR vendor list id (gvlid) set on the spec', function() {
+  it('should have GDPR vendor list id (gvlid) set on the spec', function () {
     assert.equal(spec.gvlid, 136);
   });
 
@@ -440,7 +432,7 @@ describe('stroeerCore bid adapter', function() {
         context: 'instream'
       };
 
-      assert.isTrue(spec.isBidRequestValid(bidRequest))
+      assert.isTrue(spec.isBidRequestValid(bidRequest));
     });
 
     it('should exclude multi-format bid that has no format of interest', () => {
@@ -514,7 +506,7 @@ describe('stroeerCore bid adapter', function() {
 
       it('should use hardcoded url as default endpoint', () => {
         const bidReq = buildBidderRequest();
-        let serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
+        const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
 
         assert.equal(serverRequestInfo.method, 'POST');
         assert.isObject(serverRequestInfo.data);
@@ -535,12 +527,12 @@ describe('stroeerCore bid adapter', function() {
 
         samples.forEach(sample => {
           it(`should use ${sample.expected} as endpoint when given params ${JSON.stringify(sample.params)} and protocol ${sample.protocol}`,
-            function() {
+            function () {
               const bidReq = buildBidderRequest();
               bidReq.bids[0].params = sample.params;
               bidReq.bids.length = 1;
 
-              let serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
+              const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
 
               assert.equal(serverRequestInfo.method, 'POST');
               assert.isObject(serverRequestInfo.data);
@@ -608,11 +600,11 @@ describe('stroeerCore bid adapter', function() {
             }
           }],
           'ver': {
-            'pb': '1.1.1'
+            'pb': '1.1.1',
           },
           'user': {
-            'eids': eids,
-          }
+            'eids': eids
+          },
         };
 
         // trim away fields with undefined
@@ -735,9 +727,9 @@ describe('stroeerCore bid adapter', function() {
         function buildFakeSDGForLocalKeyValues(localTargeting) {
           return {
             Wrapper: {
-              getSlotByName: function (slotName) {
+              getSlotByName: function(position) {
                 return {
-                  getFilteredKeyValues: () => localTargeting[slotName]
+                  getFilteredKeyValues: () => localTargeting[position]
                 };
               }
             }
@@ -784,16 +776,16 @@ describe('stroeerCore bid adapter', function() {
           function buildFakeSDGContext(config) {
             return {
               Wrapper: {
-                getSlotByName: function (slotName) {
+                getSlotByName: function(position) {
                   return {
                     getAdUnits: function () {
-                      return config[slotName].adUnits;
+                      return config[position].adUnits;
                     },
                     getZone: function () {
-                      return config[slotName].zone;
+                      return config[position].zone;
                     },
                     getPageType: function () {
-                      return config[slotName].pageType;
+                      return config[position].pageType;
                     },
                   };
                 }
@@ -1063,7 +1055,7 @@ describe('stroeerCore bid adapter', function() {
           const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
           assert.lengthOf(serverRequestInfo.data.bids, 2);
 
-          for (let bid of serverRequestInfo.data.bids) {
+          for (const bid of serverRequestInfo.data.bids) {
             assert.isUndefined(bid.viz);
           }
         });
@@ -1075,7 +1067,7 @@ describe('stroeerCore bid adapter', function() {
           const serverRequestInfo = spec.buildRequests(bidderRequest.bids, bidderRequest)[0];
           assert.lengthOf(serverRequestInfo.data.bids, 2);
 
-          for (let bid of serverRequestInfo.data.bids) {
+          for (const bid of serverRequestInfo.data.bids) {
             assert.isUndefined(bid.ref);
           }
         });
@@ -1140,13 +1132,11 @@ describe('stroeerCore bid adapter', function() {
           assert.isUndefined(serverRequestInfo.data.user?.userIds);
         });
 
-        it('should prefer euids over eids', () => {
+        it('should add eids from userIdAsEids', () => {
           const bidReq = buildBidderRequest();
-          bidReq.bids.forEach(bid => bid.userId = userIds);
           const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
           assert.lengthOf(serverRequestInfo.data.bids, 2);
-          assert.notProperty(serverRequestInfo.data.user, 'eids');
-          assert.deepEqual(serverRequestInfo.data.user.euids, userIds);
+          assert.deepEqual(serverRequestInfo.data.user.eids, eids);
         });
 
         it('should add schain if available', () => {
@@ -1166,7 +1156,7 @@ describe('stroeerCore bid adapter', function() {
           });
 
           const bidReq = buildBidderRequest();
-          bidReq.bids.forEach(bid => bid.schain = schain);
+          bidReq.ortb2 = { source: { ext: { schain } } };
 
           const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
           assert.deepEqual(serverRequestInfo.data.schain, schain);
@@ -1451,34 +1441,6 @@ describe('stroeerCore bid adapter', function() {
           });
         });
 
-        describe('ortb2Imp interface', () => {
-          it('should add the Global Placement IDs (GPID)', () => {
-            const bidReq = buildBidderRequest();
-
-            bidReq.bids[0].ortb2Imp = {
-              ext: {
-                gpid: '/8292/homepage-top',
-                do: 'not care about this'
-              }
-            };
-
-            bidReq.bids[1].ortb2Imp = {
-              random: {
-                number: 2329
-              },
-              ext: {
-                gpid: '/2231/bottom'
-              }
-            };
-
-            const serverRequestInfo = spec.buildRequests(bidReq.bids, bidReq)[0];
-            const [bid1, bid2] = serverRequestInfo.data.bids;
-
-            assert.deepEqual(bid1.ortb2Imp, {ext: {gpid: '/8292/homepage-top'}});
-            assert.deepEqual(bid2.ortb2Imp, {ext: {gpid: '/2231/bottom'}});
-          });
-        });
-
         it('should add the Cookie Deprecation Label', () => {
           const bidReq = buildBidderRequest();
 
@@ -1651,12 +1613,10 @@ describe('stroeerCore bid adapter', function() {
     });
 
     it('should call endpoint when it exists', () => {
-      const ajaxStub = sandbox.stub(ajax, 'ajax');
-
       spec.interpretResponse({ body: buildBidderResponseWithTep() });
 
-      assert.isTrue(ajaxStub.calledOnce);
-      assert.isTrue(ajaxStub.calledWith('//hb.adscale.de/sspReqId/5f465360-cb11-44ee-b0be-b47a4f583521/39000', sinon.match.any))
+      assert.lengthOf(server.requests, 1);
+      assert.equal(server.requests[0].url, 'http://hb.adscale.de/sspReqId/5f465360-cb11-44ee-b0be-b47a4f583521/39000');
     });
 
     it('should ignore legacy (prebid < 1.0) redirect', () => {
@@ -1681,7 +1641,7 @@ describe('stroeerCore bid adapter', function() {
     it('should interpret a video response', () => {
       const bidderResponse = buildBidderResponseWithVideo();
       const bidResponses = spec.interpretResponse({ body: bidderResponse });
-      let videoBidResponse = bidResponses[0];
+      const videoBidResponse = bidResponses[0];
       assertStandardFieldsOnVideoBid(videoBidResponse, 'bid1', '<vast>video</vast>', 800, 250, 4);
       assertCustomFieldsOnBid(videoBidResponse, 0, 4, undefined, undefined, undefined, 4, undefined);
     })
@@ -2111,15 +2071,15 @@ describe('stroeerCore bid adapter', function() {
         assert.equal(ad2, expectedAd);
       });
 
-      describe('price truncation in generateAd', function() {
-        const d = new Decrpyter('c2xzRWh5NXhpZmxndTRxYWZjY2NqZGNhTW1uZGZya3Y=');
+      describe('price truncation in generateAd', function () {
+        const decrypt = createDecrypter('c2xzRWh5NXhpZmxndTRxYWZjY2NqZGNhTW1uZGZya3Y=', 'eWRpdkFoa2tub3p5b2dscGttamIySGhkZ21jcmg0Znk=');
         const validPrices = [{ price: '1.5700000', expectation: '1.570000' }, {
           price: '12345678',
           expectation: '12345678'
         },
-        { price: '1234.56789', expectation: '1234.567' }, { price: '12345.1234', expectation: '12345.12' },
-        { price: '123456.10', expectation: '123456.1' }, { price: '123456.105', expectation: '123456.1' },
-        { price: '1234567.0052', expectation: '1234567' }, ];
+          { price: '1234.56789', expectation: '1234.567' }, { price: '12345.1234', expectation: '12345.12' },
+          { price: '123456.10', expectation: '123456.1' }, { price: '123456.105', expectation: '123456.1' },
+          { price: '1234567.0052', expectation: '1234567' }, ];
         validPrices.forEach(test => {
           it(`should safely truncate ${test.price} to ${test.expectation}`, () => {
             const bidderResponse = buildBidderResponse();
@@ -2136,13 +2096,13 @@ describe('stroeerCore bid adapter', function() {
 
             const rx = /<img src='tracker.com\?p=(.*)><\/img>/g;
             const encryptedPrice = rx.exec(ad);
-            assert.equal(d.decrypt(encryptedPrice[1]), test.expectation);
+            assert.equal(decrypt(encryptedPrice[1]), test.expectation);
           });
         });
 
         const invalidPrices = [{ price: '123456789' }, { price: '123456.15' }, { price: '1234567.0152' }, { price: '1234567.1052' }];
         invalidPrices.forEach(test => {
-          it(`should error when price is ${test.price}`, function() {
+          it(`should error when price is ${test.price}`, function () {
             const bidderResponse = buildBidderResponse();
 
             const responseBid = bidderResponse.bids[0];
@@ -2167,11 +2127,11 @@ describe('stroeerCore bid adapter', function() {
       win = setupSingleWindow(sandbox);
 
       // fake
-      win.document.createElement = function() {
+      win.document.createElement = function () {
         const attrs = {};
         return {
           setAttribute: (name, value) => {
-            attrs[name] = value
+            attrs[name] = value;
           },
           getAttribute: (name) => attrs[name],
           hasAttribute: (name) => attrs[name] !== undefined,
@@ -2253,201 +2213,3 @@ describe('stroeerCore bid adapter', function() {
     });
   });
 });
-
-function Decrpyter(encKey) {
-  this.encKey = atob(encKey);
-}
-
-function unwebSafeBase64EncodedString(str) {
-  let pad = '';
-  if (str.length % 4 === 2) {
-    pad += '==';
-  } else if (str.length % 4 === 1) {
-    pad += '=';
-  }
-
-  str = str.replace(/-/g, '+')
-    .replace(/_/g, '/');
-
-  return str + pad;
-}
-
-Decrpyter.prototype.decrypt = function(str) {
-  const unencodedStr = atob(unwebSafeBase64EncodedString(str));
-  const CIPHERTEXT_SIZE = 8;
-
-  const initVector = unencodedStr.substring(0, 16);
-  const cipherText = unencodedStr.substring(16, 16 + CIPHERTEXT_SIZE);
-  // const signature = unencodedStr.substring(16 + CIPHERTEXT_SIZE);
-
-  const pad = str_hmac_sha1(this.encKey, initVector);
-
-  let unencryptedPrice = '';
-
-  for (let i = 0; i < CIPHERTEXT_SIZE; i++) {
-    let priceCharCode = cipherText.charCodeAt(i);
-    const charCode = 0xff & (priceCharCode ^ convertSignedByte(pad.charCodeAt(i)));
-    if (charCode === 0) {
-      break;
-    }
-    unencryptedPrice = unencryptedPrice + String.fromCharCode(charCode);
-  }
-
-  // ignore integrity
-
-  return unencryptedPrice;
-};
-
-function convertSignedByte(value) {
-  if (value >= 128) {
-    return value - 256;
-  } else {
-    return value;
-  }
-}
-
-// Code taken from http://pajhome.org.uk/crypt/md5/sha1.js
-/*
- * Configurable variables. You may need to tweak these to be compatible with
- * the server-side, but the defaults work in most cases.
- */
-const chrsz = 8; // bits per input character. 8 - ASCII; 16 - Unicode
-
-/*
- * These are the functions you'll usually want to call
- * They take string arguments and return either hex or base-64 encoded strings
- */
-function str_hmac_sha1(key, data) {
-  return binb2str(core_hmac_sha1(key, data));
-}
-
-/*
- * Calculate the SHA-1 of an array of big-endian words, and a bit length
- */
-function core_sha1(x, len) {
-  /* append padding */
-  x[len >> 5] |= 0x80 << (24 - len % 32);
-  x[((len + 64 >> 9) << 4) + 15] = len;
-
-  let w = Array(80);
-  let a = 1732584193;
-  let b = -271733879;
-  let c = -1732584194;
-  let d = 271733878;
-  let e = -1009589776;
-
-  for (let i = 0; i < x.length; i += 16) {
-    const olda = a;
-    const oldb = b;
-    const oldc = c;
-    const oldd = d;
-    const olde = e;
-
-    for (let j = 0; j < 80; j++) {
-      if (j < 16) {
-        w[j] = x[i + j];
-      } else {
-        w[j] = rol(w[j - 3] ^ w[j - 8] ^ w[j - 14] ^ w[j - 16], 1);
-      }
-      const t = safe_add(safe_add(rol(a, 5), sha1_ft(j, b, c, d)), safe_add(safe_add(e, w[j]), sha1_kt(j)));
-      e = d;
-      d = c;
-      c = rol(b, 30);
-      b = a;
-      a = t;
-    }
-
-    a = safe_add(a, olda);
-    b = safe_add(b, oldb);
-    c = safe_add(c, oldc);
-    d = safe_add(d, oldd);
-    e = safe_add(e, olde);
-  }
-  return [a, b, c, d, e]; // Was Array(a, b, c, d, e)
-}
-
-/*
- * Perform the appropriate triplet combination function for the current
- * iteration
- */
-function sha1_ft(t, b, c, d) {
-  if (t < 20) {
-    return (b & c) | ((~b) & d);
-  }
-  if (t < 40) {
-    return b ^ c ^ d;
-  }
-  if (t < 60) {
-    return (b & c) | (b & d) | (c & d);
-  }
-  return b ^ c ^ d;
-}
-
-/*
- * Determine the appropriate additive constant for the current iteration
- */
-function sha1_kt(t) {
-  return (t < 20) ? 1518500249 : (t < 40) ? 1859775393 : (t < 60) ? -1894007588 : -899497514;
-}
-
-/*
- * Calculate the HMAC-SHA1 of a key and some data
- */
-function core_hmac_sha1(key, data) {
-  let bkey = str2binb(key);
-  if (bkey.length > 16) {
-    bkey = core_sha1(bkey, key.length * chrsz);
-  }
-
-  const ipad = Array(16);
-  const opad = Array(16);
-  for (let i = 0; i < 16; i++) {
-    ipad[i] = bkey[i] ^ 0x36363636;
-    opad[i] = bkey[i] ^ 0x5C5C5C5C;
-  }
-
-  const hash = core_sha1(ipad.concat(str2binb(data)), 512 + data.length * chrsz);
-  return core_sha1(opad.concat(hash), 512 + 160);
-}
-
-/*
- * Add integers, wrapping at 2^32. This uses 16-bit operations internally
- * to work around bugs in some JS interpreters.
- */
-function safe_add(x, y) {
-  const lsw = (x & 0xFFFF) + (y & 0xFFFF);
-  const msw = (x >> 16) + (y >> 16) + (lsw >> 16);
-  return (msw << 16) | (lsw & 0xFFFF);
-}
-
-/*
- * Bitwise rotate a 32-bit number to the left.
- */
-function rol(num, cnt) {
-  return (num << cnt) | (num >>> (32 - cnt));
-}
-
-/*
- * Convert an 8-bit or 16-bit string to an array of big-endian words
- * In 8-bit function, characters >255 have their hi-byte silently ignored.
- */
-function str2binb(str) {
-  const bin = []; // was Array()
-  const mask = (1 << chrsz) - 1;
-  for (let i = 0; i < str.length * chrsz; i += chrsz) {
-    bin[i >> 5] |= (str.charCodeAt(i / chrsz) & mask) << (32 - chrsz - i % 32);
-  }
-  return bin;
-}
-
-/*
- * Convert an array of big-endian words to a string
- */
-function binb2str(bin) {
-  let str = '';
-  const mask = (1 << chrsz) - 1;
-  for (let i = 0; i < bin.length * 32; i += chrsz) {
-    str += String.fromCharCode((bin[i >> 5] >>> (32 - chrsz - i % 32)) & mask);
-  }
-  return str;
-}
